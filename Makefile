@@ -1,4 +1,4 @@
-PACKAGE    = $(notdir $(realpath .))
+PACKAGE    = fomu-flash
 ADD_CFLAGS = 
 ADD_LFLAGS = 
 
@@ -21,11 +21,9 @@ endif
 DBG_CFLAGS = -ggdb -g -DDEBUG -Wall
 DBG_LFLAGS = -ggdb -g -Wall
 CFLAGS     = $(ADD_CFLAGS) \
-             -Wall -Wextra \
-             -ffunction-sections -fdata-sections -fno-common \
-             -fomit-frame-pointer -Os \
-             -DGIT_VERSION=u\"$(GIT_VERSION)\" -std=gnu11
-CXXFLAGS   = $(CFLAGS) -std=c++11
+             -Wall -Wextra -O2 \
+             -DGIT_VERSION=u\"$(GIT_VERSION)\"
+CXXFLAGS   = $(CFLAGS)
 LFLAGS     = $(ADD_LFLAGS) $(CFLAGS) \
 
 OBJ_DIR    = .obj
