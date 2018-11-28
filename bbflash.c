@@ -43,6 +43,19 @@ struct bb_spi {
 	enum spi_state state;
 	enum spi_type type;
 	int qpi;
+
+	struct {
+		int clk;
+		int d0;
+		int d1;
+		int d2;
+		int d3;
+		int wp;
+		int hold;
+		int cs;
+		int miso;
+		int mosi;
+	} pins;
 };
 
 static void spi_set_state(struct bb_spi *spi, enum spi_state state) {
@@ -51,57 +64,57 @@ static void spi_set_state(struct bb_spi *spi, enum spi_state state) {
 
 	switch (state) {
 	case SS_SINGLE:
-		gpioSetMode(S_CLK, PI_OUTPUT); // CLK
-		gpioSetMode(S_CE0, PI_OUTPUT); // CE0#
-		gpioSetMode(S_MOSI, PI_OUTPUT); // MOSI
-		gpioSetMode(S_MISO, PI_INPUT); // MISO
-		gpioSetMode(S_HOLD, PI_OUTPUT);
-		gpioSetMode(S_WP, PI_OUTPUT);
+		gpioSetMode(spi->pins.clk, PI_OUTPUT); // CLK
+		gpioSetMode(spi->pins.cs, PI_OUTPUT); // CE0#
+		gpioSetMode(spi->pins.mosi, PI_OUTPUT); // MOSI
+		gpioSetMode(spi->pins.miso, PI_INPUT); // MISO
+		gpioSetMode(spi->pins.hold, PI_OUTPUT);
+		gpioSetMode(spi->pins.wp, PI_OUTPUT);
 		break;
 
 	case SS_DUAL_RX:
-		gpioSetMode(S_CLK, PI_OUTPUT); // CLK
-		gpioSetMode(S_CE0, PI_OUTPUT); // CE0#
-		gpioSetMode(S_MOSI, PI_INPUT); // MOSI
-		gpioSetMode(S_MISO, PI_INPUT); // MISO
-		gpioSetMode(S_HOLD, PI_OUTPUT);
-		gpioSetMode(S_WP, PI_OUTPUT);
+		gpioSetMode(spi->pins.clk, PI_OUTPUT); // CLK
+		gpioSetMode(spi->pins.cs, PI_OUTPUT); // CE0#
+		gpioSetMode(spi->pins.mosi, PI_INPUT); // MOSI
+		gpioSetMode(spi->pins.miso, PI_INPUT); // MISO
+		gpioSetMode(spi->pins.hold, PI_OUTPUT);
+		gpioSetMode(spi->pins.wp, PI_OUTPUT);
 		break;
 
 	case SS_DUAL_TX:
-		gpioSetMode(S_CLK, PI_OUTPUT); // CLK
-		gpioSetMode(S_CE0, PI_OUTPUT); // CE0#
-		gpioSetMode(S_MOSI, PI_OUTPUT); // MOSI
-		gpioSetMode(S_MISO, PI_OUTPUT); // MISO
-		gpioSetMode(S_HOLD, PI_OUTPUT);
-		gpioSetMode(S_WP, PI_OUTPUT);
+		gpioSetMode(spi->pins.clk, PI_OUTPUT); // CLK
+		gpioSetMode(spi->pins.cs, PI_OUTPUT); // CE0#
+		gpioSetMode(spi->pins.mosi, PI_OUTPUT); // MOSI
+		gpioSetMode(spi->pins.miso, PI_OUTPUT); // MISO
+		gpioSetMode(spi->pins.hold, PI_OUTPUT);
+		gpioSetMode(spi->pins.wp, PI_OUTPUT);
 		break;
 
 	case SS_QUAD_RX:
-		gpioSetMode(S_CLK, PI_OUTPUT); // CLK
-		gpioSetMode(S_CE0, PI_OUTPUT); // CE0#
-		gpioSetMode(S_MOSI, PI_INPUT); // MOSI
-		gpioSetMode(S_MISO, PI_INPUT); // MISO
-		gpioSetMode(S_HOLD, PI_INPUT);
-		gpioSetMode(S_WP, PI_INPUT);
+		gpioSetMode(spi->pins.clk, PI_OUTPUT); // CLK
+		gpioSetMode(spi->pins.cs, PI_OUTPUT); // CE0#
+		gpioSetMode(spi->pins.mosi, PI_INPUT); // MOSI
+		gpioSetMode(spi->pins.miso, PI_INPUT); // MISO
+		gpioSetMode(spi->pins.hold, PI_INPUT);
+		gpioSetMode(spi->pins.wp, PI_INPUT);
 		break;
 
 	case SS_QUAD_TX:
-		gpioSetMode(S_CLK, PI_OUTPUT); // CLK
-		gpioSetMode(S_CE0, PI_OUTPUT); // CE0#
-		gpioSetMode(S_MOSI, PI_OUTPUT); // MOSI
-		gpioSetMode(S_MISO, PI_OUTPUT); // MISO
-		gpioSetMode(S_HOLD, PI_OUTPUT);
-		gpioSetMode(S_WP, PI_OUTPUT);
+		gpioSetMode(spi->pins.clk, PI_OUTPUT); // CLK
+		gpioSetMode(spi->pins.cs, PI_OUTPUT); // CE0#
+		gpioSetMode(spi->pins.mosi, PI_OUTPUT); // MOSI
+		gpioSetMode(spi->pins.miso, PI_OUTPUT); // MISO
+		gpioSetMode(spi->pins.hold, PI_OUTPUT);
+		gpioSetMode(spi->pins.wp, PI_OUTPUT);
 		break;
 
 	case SS_HARDWARE:
-		gpioSetMode(S_CLK, PI_ALT0); // CLK
-		gpioSetMode(S_CE0, PI_ALT0); // CE0#
-		gpioSetMode(S_MOSI, PI_ALT0); // MOSI
-		gpioSetMode(S_MISO, PI_ALT0); // MISO
-		gpioSetMode(S_HOLD, PI_OUTPUT);
-		gpioSetMode(S_WP, PI_OUTPUT);
+		gpioSetMode(spi->pins.clk, PI_ALT0); // CLK
+		gpioSetMode(spi->pins.cs, PI_ALT0); // CE0#
+		gpioSetMode(spi->pins.mosi, PI_ALT0); // MOSI
+		gpioSetMode(spi->pins.miso, PI_ALT0); // MISO
+		gpioSetMode(spi->pins.hold, PI_OUTPUT);
+		gpioSetMode(spi->pins.wp, PI_OUTPUT);
 		break;
 
 	default:
@@ -119,12 +132,12 @@ static void spi_pause(void) {
 
 static void spiBegin(struct bb_spi *spi) {
 	spi_set_state(spi, SS_SINGLE);
-	gpioWrite(S_CE0, 0);
+	gpioWrite(spi->pins.cs, 0);
 }
 
 static void spiEnd(struct bb_spi *spi) {
 	(void)spi;
-	gpioWrite(S_CE0, 1);
+	gpioWrite(spi->pins.cs, 1);
 }
 
 static uint8_t spiXfer(struct bb_spi *spi, uint8_t out) {
@@ -132,15 +145,15 @@ static uint8_t spiXfer(struct bb_spi *spi, uint8_t out) {
 	uint8_t in = 0;
 	for (bit = 7; bit >= 0; bit--) {
 		if (out & (1 << bit)) {
-			gpioWrite(S_MOSI, 1);
+			gpioWrite(spi->pins.mosi, 1);
 		}
 		else {
-			gpioWrite(S_MOSI, 0);
+			gpioWrite(spi->pins.mosi, 0);
 		}
-		gpioWrite(S_CLK, 1);
+		gpioWrite(spi->pins.clk, 1);
 		spi_pause();
-		in |= ((!!gpioRead(S_MISO)) << bit);
-		gpioWrite(S_CLK, 0);
+		in |= ((!!gpioRead(spi->pins.miso)) << bit);
+		gpioWrite(spi->pins.clk, 0);
 		spi_pause();
 	}
 	return in;
@@ -161,21 +174,21 @@ static void spiDualTx(struct bb_spi *spi, uint8_t out) {
 	spi_set_state(spi, SS_DUAL_TX);
 	for (bit = 7; bit >= 0; bit -= 2) {
 		if (out & (1 << (bit - 1))) {
-			gpioWrite(S_D0, 1);
+			gpioWrite(spi->pins.d0, 1);
 		}
 		else {
-			gpioWrite(S_D0, 0);
+			gpioWrite(spi->pins.d0, 0);
 		}
 
 		if (out & (1 << (bit - 0))) {
-			gpioWrite(S_D1, 1);
+			gpioWrite(spi->pins.d1, 1);
 		}
 		else {
-			gpioWrite(S_D1, 0);
+			gpioWrite(spi->pins.d1, 0);
 		}
-		gpioWrite(S_CLK, 1);
+		gpioWrite(spi->pins.clk, 1);
 		spi_pause();
-		gpioWrite(S_CLK, 0);
+		gpioWrite(spi->pins.clk, 0);
 		spi_pause();
 	}
 }
@@ -185,35 +198,35 @@ static void spiQuadTx(struct bb_spi *spi, uint8_t out) {
 	spi_set_state(spi, SS_QUAD_TX);
 	for (bit = 7; bit >= 0; bit -= 4) {
 		if (out & (1 << (bit - 3))) {
-			gpioWrite(S_D0, 1);
+			gpioWrite(spi->pins.d0, 1);
 		}
 		else {
-			gpioWrite(S_D0, 0);
+			gpioWrite(spi->pins.d0, 0);
 		}
 
 		if (out & (1 << (bit - 2))) {
-			gpioWrite(S_D1, 1);
+			gpioWrite(spi->pins.d1, 1);
 		}
 		else {
-			gpioWrite(S_D1, 0);
+			gpioWrite(spi->pins.d1, 0);
 		}
 
 		if (out & (1 << (bit - 1))) {
-			gpioWrite(S_D2, 1);
+			gpioWrite(spi->pins.d2, 1);
 		}
 		else {
-			gpioWrite(S_D2, 0);
+			gpioWrite(spi->pins.d2, 0);
 		}
 
 		if (out & (1 << (bit - 0))) {
-			gpioWrite(S_D3, 1);
+			gpioWrite(spi->pins.d3, 1);
 		}
 		else {
-			gpioWrite(S_D3, 0);
+			gpioWrite(spi->pins.d3, 0);
 		}
-		gpioWrite(S_CLK, 1);
+		gpioWrite(spi->pins.clk, 1);
 		spi_pause();
-		gpioWrite(S_CLK, 0);
+		gpioWrite(spi->pins.clk, 0);
 		spi_pause();
 	}
 }
@@ -231,11 +244,11 @@ static uint8_t spiDualRx(struct bb_spi *spi) {
 
 	spi_set_state(spi, SS_QUAD_RX);
 	for (bit = 7; bit >= 0; bit -= 2) {
-		gpioWrite(S_CLK, 1);
+		gpioWrite(spi->pins.clk, 1);
 		spi_pause();
-		in |= ((!!gpioRead(S_D0)) << (bit - 1));
-		in |= ((!!gpioRead(S_D1)) << (bit - 0));
-		gpioWrite(S_CLK, 0);
+		in |= ((!!gpioRead(spi->pins.d0)) << (bit - 1));
+		in |= ((!!gpioRead(spi->pins.d1)) << (bit - 0));
+		gpioWrite(spi->pins.clk, 0);
 		spi_pause();
 	}
 	return in;
@@ -247,13 +260,13 @@ static uint8_t spiQuadRx(struct bb_spi *spi) {
 
 	spi_set_state(spi, SS_QUAD_RX);
 	for (bit = 7; bit >= 0; bit -= 4) {
-		gpioWrite(S_CLK, 1);
+		gpioWrite(spi->pins.clk, 1);
 		spi_pause();
-		in |= ((!!gpioRead(S_D0)) << (bit - 3));
-		in |= ((!!gpioRead(S_D1)) << (bit - 2));
-		in |= ((!!gpioRead(S_D2)) << (bit - 1));
-		in |= ((!!gpioRead(S_D3)) << (bit - 0));
-		gpioWrite(S_CLK, 0);
+		in |= ((!!gpioRead(spi->pins.d0)) << (bit - 3));
+		in |= ((!!gpioRead(spi->pins.d1)) << (bit - 2));
+		in |= ((!!gpioRead(spi->pins.d2)) << (bit - 1));
+		in |= ((!!gpioRead(spi->pins.d3)) << (bit - 0));
+		gpioWrite(spi->pins.clk, 0);
 		spi_pause();
 	}
 	return in;
@@ -550,13 +563,13 @@ uint8_t spiReset(struct bb_spi *spi) {
 	return 0;
 }
 
-void fpgaSlaveMode(void) {
+void fpgaSlaveMode(struct bb_spi *spi) {
 
 	// Set the CS pin to a GPIO, which will let us control it
-	gpioSetMode(S_CE0, PI_OUTPUT);
+	gpioSetMode(spi->pins.cs, PI_OUTPUT);
 
 	// Set CS to 0, which will put the FPGA into slave mode
-	gpioWrite(S_CE0, 0);
+	gpioWrite(spi->pins.cs, 0);
 
 	usleep(10000); // XXX figure out correct sleep length here
 
@@ -641,12 +654,22 @@ int main(int argc, char *argv[])
 	 * To program the FPGA
 	 */
 
+	spi.pins.clk = S_CLK;
+	spi.pins.d0 = S_D0;
+	spi.pins.d1 = S_D1;
+	spi.pins.d2 = S_D2;
+	spi.pins.d3 = S_D3;
+	spi.pins.miso = S_MISO;
+	spi.pins.mosi = S_MOSI;
+	spi.pins.hold = S_HOLD;
+	spi.pins.wp = S_WP;
+	spi.pins.cs   = S_CE0;
 
 	// Have the SPI flash pay attention to us
-	gpioWrite(S_HOLD, 1);
+	gpioWrite(spi.pins.hold, 1);
 
 	// Disable WP
-	gpioWrite(S_WP, 1);
+	gpioWrite(spi.pins.wp, 1);
 
 	// Put the FPGA into reset
 	gpioSetMode(F_RESET, PI_OUTPUT);
@@ -702,7 +725,7 @@ int main(int argc, char *argv[])
 	{
 		uint8_t check_data[sizeof(data)];
 		spiRead(&spi, 0, check_data, sizeof(check_data));
-		int j;
+		size_t j;
 		for (j=0; j<sizeof(check_data); j++) {
 			if (data[j] != check_data[j]) {
 				fprintf(stderr, "check data %d different: %02x vs %02x\n", j, check_data[j], data[j]);
@@ -714,10 +737,10 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "Programming result: %d\n", result);
 
 	// Deassert CS
-	gpioWrite(S_CE0, 1);
+	gpioWrite(spi.pins.cs, 1);
 
 	// Deassert hold, if set
-	gpioWrite(S_HOLD, 1);
+	gpioWrite(spi.pins.hold, 1);
 
 	// Return the SPI pins to SPI mode, so we can talk to
 	// the FPGA normally

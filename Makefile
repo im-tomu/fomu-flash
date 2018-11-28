@@ -51,7 +51,7 @@ $(OBJECTS): | $(OBJ_DIR)
 
 $(TARGET): $(OBJECTS)
 	$(QUIET) echo "  LD       $@"
-	$(QUIET) $(CXX) $(OBJECTS) $(LFLAGS) -o $@
+	$(QUIET) $(CC) $(OBJECTS) $(LFLAGS) -o $@
 
 $(DEBUG): CFLAGS += $(DBG_CFLAGS)
 $(DEBUG): LFLAGS += $(DBG_LFLAGS)
