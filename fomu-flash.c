@@ -70,6 +70,7 @@ enum op {
 	OP_SPI_WRITE,
 	OP_SPI_VERIFY,
 	OP_SPI_PEEK,
+	OP_SPI_ID,
 	OP_FPGA_BOOT,
 	OP_FPGA_RESET,
 	OP_UNKNOWN,
@@ -93,7 +94,7 @@ static int pinspec_to_pinname(char code) {
 	}
 }
 
-int print_pinspec(FILE *stream) {
+static int print_pinspec(FILE *stream) {
 	fprintf(stream, "Pinspec:\n");
 	fprintf(stream, " Name   Description    Default\n");
 	fprintf(stream, "   0    SPI D0         %d\n", S_D0);
@@ -112,21 +113,30 @@ int print_pinspec(FILE *stream) {
 	return 0;
 }
 
-int print_help(FILE *stream, const char *progname) {
-	fprintf(stream, "Fomu Raspberry Pi Flash Utilities\n");
-	fprintf(stream, "Usage:\n");
-	fprintf(stream, "    %s [-h] [-r] [-p offset] [-f bin] [-w bin] [-v bin] [-s out] [-g pinspec]\n", progname);
-	fprintf(stream, "Flags:\n");
+static int print_program_modes(FILE *stream) {
 	fprintf(stream, "    -h        This help page\n");
 	fprintf(stream, "    -r        Reset the FPGA and have it boot from SPI\n");
+	fprintf(stream, "    -i        Print out the SPI ID code\n");
 	fprintf(stream, "    -p offset Peek at 256 bytes of SPI flash at the specified offset\n");
 	fprintf(stream, "    -f bin    Load this binary directly into the FPGA\n");
 	fprintf(stream, "    -w bin    Write this binary into the SPI flash chip\n");
 	fprintf(stream, "    -v bin    Verify the SPI flash contains this data\n");
 	fprintf(stream, "    -s out    Save the SPI flash contents to this file\n");
+	return 0;
+}
+
+static int print_help(FILE *stream, const char *progname) {
+	fprintf(stream, "Fomu Raspberry Pi Flash Utilities\n");
+	fprintf(stream, "Usage:\n");
+	fprintf(stream, "%15s (-[hri] | [-p offset] | [-f bin] | [-w bin] | [-v bin] | [-s out])\n", progname);
+	fprintf(stream, "                [-g pinspec] [-t spitype] [-r]\n");
+	fprintf(stream, "Program mode (pick one):\n");
+	print_program_modes(stream);
+	fprintf(stream, "Configuration options:\n");
 	fprintf(stream, "    -g ps     Set the pin assignment with the given pinspec\n");
 	fprintf(stream, "    -t type   Set the number of bits to use for SPI (1, 2, 4, or Q)\n");
 	fprintf(stream, "You can remap various pins with -g.  The format is [name]:[number].\n");
+	fprintf(stream, "\n");
 	fprintf(stream, "The width of SPI can be set with 't [width]'.  Valid widths are:\n");
 	fprintf(stream, "    1 - standard 1-bit spi\n");
 	fprintf(stream, "    2 - standard 2-bit spi\n");
@@ -135,6 +145,12 @@ int print_help(FILE *stream, const char *progname) {
 	fprintf(stream, "\n");
 	print_pinspec(stream);
 	return 0;
+}
+
+static int print_usage_error(FILE *stream) {
+	fprintf(stream, "Error: You must only specify one program mode:\n");
+	print_program_modes(stream);
+	return 1;
 }
 
 int main(int argc, char **argv) {
@@ -170,14 +186,24 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	while ((opt = getopt(argc, argv, "hp:rf:w:s:2:3:v:g:t:")) != -1) {
+	while ((opt = getopt(argc, argv, "hip:rf:w:s:2:3:v:g:t:")) != -1) {
 		switch (opt) {
 
 		case 'r':
+			if (op != OP_UNKNOWN)
+				return print_usage_error(stdout);
 			op = OP_FPGA_RESET;
 			break;
 
+		case 'i':
+			if (op != OP_UNKNOWN)
+				return print_usage_error(stdout);
+			op = OP_SPI_ID;
+			break;
+
 		case 'p':
+			if (op != OP_UNKNOWN)
+				return print_usage_error(stdout);
 			op = OP_SPI_PEEK;
 			peek_offset = strtoul(optarg, NULL, 0);
 			break;
@@ -221,6 +247,8 @@ int main(int argc, char **argv) {
 			break;
 
 		case 'f':
+			if (op != OP_UNKNOWN)
+				return print_usage_error(stdout);
 			op = OP_FPGA_BOOT;
 			if (op_filename)
 				free(op_filename);
@@ -228,6 +256,8 @@ int main(int argc, char **argv) {
 			break;
 
 		case 'w':
+			if (op != OP_UNKNOWN)
+				return print_usage_error(stdout);
 			op = OP_SPI_WRITE;
 			if (op_filename)
 				free(op_filename);
@@ -235,6 +265,8 @@ int main(int argc, char **argv) {
 			break;
 
 		case 'v':
+			if (op != OP_UNKNOWN)
+				return print_usage_error(stdout);
 			op = OP_SPI_VERIFY;
 			if (op_filename)
 				free(op_filename);
@@ -242,6 +274,8 @@ int main(int argc, char **argv) {
 			break;
 
 		case 's':
+			if (op != OP_UNKNOWN)
+				return print_usage_error(stdout);
 			op = OP_SPI_READ;
 			if (op_filename)
 				free(op_filename);
@@ -262,10 +296,26 @@ int main(int argc, char **argv) {
 	spiInit(spi);
 	fpgaInit(fpga);
 
+	spiSetType(spi, spi_type);
+	fpgaReset(fpga);
+
 	switch (op) {
+	case OP_SPI_ID: {
+		struct spi_id id = spiId(spi);
+		printf("Device ID: %02x\n", id.device_id);
+		if (id.device_id != id.signature)
+			printf("!! Electronic Signature: %02x\n", id.signature);
+		printf("Manufacturer ID: %02x\n", id.manufacturer_id);
+		if (id.manufacturer_id != id._manufacturer_id)
+			printf("!! JEDEC Manufacturer ID: %02x\n",
+			id._manufacturer_id);
+		printf("Memory type: %02x\n", id.memory_type);
+		printf("Memory size: %02x\n", id.memory_size);
+		printf("Serial number: %02x %02x %02x %02x\n", id.serial[0], id.serial[1], id.serial[2], id.serial[3]);
+		break;
+	}
+
 	case OP_SPI_READ: {
-		spiSetType(spi, spi_type);
-		fpgaReset(fpga);
 		fd = open(op_filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
 		if (fd == -1) {
 			perror("unable to open output file");
@@ -283,8 +333,6 @@ int main(int argc, char **argv) {
 	}
 
 	case OP_SPI_WRITE: {
-		spiSetType(spi, spi_type);
-		fpgaReset(fpga);
 		fd = open(op_filename, O_RDONLY);
 		if (fd == -1) {
 			perror("unable to open input file");
@@ -312,9 +360,6 @@ int main(int argc, char **argv) {
 	}
 
 	case OP_SPI_VERIFY: {
-
-		spiSetType(spi, spi_type);
-		fpgaReset(fpga);
 		fd = open(op_filename, O_RDONLY);
 		if (fd == -1) {
 			perror("unable to open input file");
@@ -351,8 +396,6 @@ offset, file_src[offset], spi_src[offset]);
 	}
 
 	case OP_SPI_PEEK: {
-		fpgaReset(fpga);
-		spiSetType(spi, spi_type);
 		uint8_t page[256];
 		spiRead(spi, peek_offset, page, sizeof(page));
 		print_hex_offset(stdout, page, sizeof(page), 0, 0);
