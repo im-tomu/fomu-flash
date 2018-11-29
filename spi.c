@@ -203,13 +203,6 @@ static void spiQuadTx(struct ff_spi *spi, uint8_t out) {
 	}
 }
 
-void spiCommand(struct ff_spi *spi, uint8_t cmd) {
-	if (spi->type == ST_QPI)
-		spiQuadTx(spi, cmd);
-	else
-		spiSingleTx(spi, cmd);
-}
-
 static uint8_t spiDualRx(struct ff_spi *spi) {
 	int bit;
 	uint8_t in = 0;
@@ -274,6 +267,20 @@ uint8_t spiRx(struct ff_spi *spi) {
 	default:
 		return 0xff;
 	}
+}
+
+void spiCommand(struct ff_spi *spi, uint8_t cmd) {
+	if (spi->type == ST_QPI)
+		spiQuadTx(spi, cmd);
+	else
+		spiSingleTx(spi, cmd);
+}
+
+uint8_t spiCommandRx(struct ff_spi *spi) {
+	if (spi->type == ST_QPI)
+		return spiQuadRx(spi);
+	else
+		return spiSingleRx(spi);
 }
 
 uint8_t spiReadSr(struct ff_spi *spi, int sr) {
@@ -349,6 +356,51 @@ void spiWriteSr(struct ff_spi *spi, int sr, uint8_t val) {
 		break;
 	}
 }
+
+struct spi_id spiId(struct ff_spi *spi) {
+	struct spi_id id;
+	memset(&id, 0xff, sizeof(id));
+
+	spiBegin(spi);
+	spiCommand(spi, 0x90);	// Read manufacturer ID
+	spiCommand(spi, 0x00);  // Dummy byte 1
+	spiCommand(spi, 0x00);  // Dummy byte 2
+	spiCommand(spi, 0x00);  // Dummy byte 3
+	id.manufacturer_id = spiCommandRx(spi);
+	id.device_id = spiCommandRx(spi);
+	spiEnd(spi);
+
+	spiBegin(spi);
+	spiCommand(spi, 0x9f);	// Read device id
+	id._manufacturer_id = spiCommandRx(spi);
+	id.memory_type = spiCommandRx(spi);
+	id.memory_size = spiCommandRx(spi);
+	spiEnd(spi);
+
+	spiBegin(spi);
+	spiCommand(spi, 0xab);	// Read electronic signature
+	spiCommand(spi, 0x00);  // Dummy byte 1
+	spiCommand(spi, 0x00);  // Dummy byte 2
+	spiCommand(spi, 0x00);  // Dummy byte 3
+	id.signature = spiCommandRx(spi);
+	spiEnd(spi);
+
+	spiBegin(spi);
+	spiCommand(spi, 0x4b);	// Read unique ID
+	spiCommand(spi, 0x00);  // Dummy byte 1
+	spiCommand(spi, 0x00);  // Dummy byte 2
+	spiCommand(spi, 0x00);  // Dummy byte 3
+	spiCommand(spi, 0x00);  // Dummy byte 4
+	id.serial[0] = spiCommandRx(spi);
+	id.serial[1] = spiCommandRx(spi);
+	id.serial[2] = spiCommandRx(spi);
+	id.serial[3] = spiCommandRx(spi);
+	spiEnd(spi);
+
+	return id;
+}
+		
+uint32_t spiJedecId(struct ff_spi *spi);
 
 int spiSetType(struct ff_spi *spi, enum spi_type type) {
 
