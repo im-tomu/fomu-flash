@@ -125,7 +125,13 @@ int print_help(FILE *stream, const char *progname) {
 	fprintf(stream, "    -v bin    Verify the SPI flash contains this data\n");
 	fprintf(stream, "    -s out    Save the SPI flash contents to this file\n");
 	fprintf(stream, "    -g ps     Set the pin assignment with the given pinspec\n");
+	fprintf(stream, "    -t type   Set the number of bits to use for SPI (1, 2, 4, or Q)\n");
 	fprintf(stream, "You can remap various pins with -g.  The format is [name]:[number].\n");
+	fprintf(stream, "The width of SPI can be set with 't [width]'.  Valid widths are:\n");
+	fprintf(stream, "    1 - standard 1-bit spi\n");
+	fprintf(stream, "    2 - standard 2-bit spi\n");
+	fprintf(stream, "    4 - standard 4-bit spi (with 1-bit commands)\n");
+	fprintf(stream, "    q - 4-bit qspi (with 4-bit commands)\n");
 	fprintf(stream, "\n");
 	print_pinspec(stream);
 	return 0;
@@ -139,6 +145,7 @@ int main(int argc, char **argv) {
 	struct ff_fpga *fpga;
 	int peek_offset = 0;
 	enum op op = OP_UNKNOWN;
+	enum spi_type spi_type = ST_SINGLE;
 
  	spi = spiAlloc();
 	fpga = fpgaAlloc();
@@ -163,7 +170,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	while ((opt = getopt(argc, argv, "hp:rf:w:s:2:3:v:g:")) != -1) {
+	while ((opt = getopt(argc, argv, "hp:rf:w:s:2:3:v:g:t:")) != -1) {
 		switch (opt) {
 
 		case 'r':
@@ -173,6 +180,26 @@ int main(int argc, char **argv) {
 		case 'p':
 			op = OP_SPI_PEEK;
 			peek_offset = strtoul(optarg, NULL, 0);
+			break;
+
+		case 't':
+			switch (*optarg) {
+			case '1':
+				spi_type = ST_SINGLE;
+				break;
+			case '2':
+				spi_type = ST_DUAL;
+				break;
+			case '4':
+				spi_type = ST_QUAD;
+				break;
+			case 'q':
+				spi_type = ST_QPI;
+				break;
+			default:
+				fprintf(stderr, "Unrecognized SPI speed '%c'.  Valid types are: 1, 2, 4, or q\n", *optarg);
+				return 1;
+			}
 			break;
 
 		case 'g':
@@ -237,7 +264,7 @@ int main(int argc, char **argv) {
 
 	switch (op) {
 	case OP_SPI_READ: {
-		spiSetType(spi, ST_QPI);
+		spiSetType(spi, spi_type);
 		fpgaReset(fpga);
 		fd = open(op_filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
 		if (fd == -1) {
@@ -256,7 +283,7 @@ int main(int argc, char **argv) {
 	}
 
 	case OP_SPI_WRITE: {
-		spiSetType(spi, ST_QPI);
+		spiSetType(spi, spi_type);
 		fpgaReset(fpga);
 		fd = open(op_filename, O_RDONLY);
 		if (fd == -1) {
@@ -286,7 +313,7 @@ int main(int argc, char **argv) {
 
 	case OP_SPI_VERIFY: {
 
-		spiSetType(spi, ST_QPI);
+		spiSetType(spi, spi_type);
 		fpgaReset(fpga);
 		fd = open(op_filename, O_RDONLY);
 		if (fd == -1) {
@@ -325,7 +352,7 @@ offset, file_src[offset], spi_src[offset]);
 
 	case OP_SPI_PEEK: {
 		fpgaReset(fpga);
-		spiSetType(spi, ST_QPI);
+		spiSetType(spi, spi_type);
 		uint8_t page[256];
 		spiRead(spi, peek_offset, page, sizeof(page));
 		print_hex_offset(stdout, page, sizeof(page), 0, 0);
