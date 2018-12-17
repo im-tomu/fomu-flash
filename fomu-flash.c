@@ -75,10 +75,47 @@ enum op {
 	OP_UNKNOWN,
 };
 
+static int pinspec_to_pinname(char code) {
+	switch (code) {
+		case '0': return SP_D0;
+		case '1': return SP_D1;
+		case '2': return SP_D2;
+		case '3': return SP_D3;
+		case 'o': return SP_MOSI;
+		case 'i': return SP_MISO;
+		case 'w': return SP_WP;
+		case 'h': return SP_HOLD;
+		case 'k': return SP_CLK;
+		case 'c': return SP_CS;
+		case 'r': return FP_RESET;
+		case 'd': return FP_DONE;
+		default: return -1;
+	}
+}
+
+int print_pinspec(FILE *stream) {
+	fprintf(stream, "Pinspec:\n");
+	fprintf(stream, " Name   Description    Default\n");
+	fprintf(stream, "   0    SPI D0         %d\n", S_D0);
+	fprintf(stream, "   1    SPI D1         %d\n", S_D1);
+	fprintf(stream, "   2    SPI D2         %d\n", S_D2);
+	fprintf(stream, "   3    SPI D3         %d\n", S_D3);
+	fprintf(stream, "   o    SPI MOSI       %d\n", S_MOSI);
+	fprintf(stream, "   i    SPI MISO       %d\n", S_MISO);
+	fprintf(stream, "   w    SPI WP         %d\n", S_WP);
+	fprintf(stream, "   h    SPI HOLD       %d\n", S_HOLD);
+	fprintf(stream, "   k    SPI CLK        %d\n", S_CLK);
+	fprintf(stream, "   c    SPI CS         %d\n", S_CE0);
+	fprintf(stream, "   r    FPGA Reset     %d\n", F_RESET);
+	fprintf(stream, "   d    FPGA Done      %d\n", F_DONE);
+	fprintf(stream, "For example: -g i:23    or -g d:27\n");
+	return 0;
+}
+
 int print_help(FILE *stream, const char *progname) {
 	fprintf(stream, "Fomu Raspberry Pi Flash Utilities\n");
 	fprintf(stream, "Usage:\n");
-	fprintf(stream, "    %s [-h] [-r] [-p offset] [-f bin] [-w bin] [-v bin] [-s out] [-2 pin] [-3 pin]\n", progname);
+	fprintf(stream, "    %s [-h] [-r] [-p offset] [-f bin] [-w bin] [-v bin] [-s out] [-g pinspec]\n", progname);
 	fprintf(stream, "Flags:\n");
 	fprintf(stream, "    -h        This help page\n");
 	fprintf(stream, "    -r        Reset the FPGA and have it boot from SPI\n");
@@ -87,8 +124,10 @@ int print_help(FILE *stream, const char *progname) {
 	fprintf(stream, "    -w bin    Write this binary into the SPI flash chip\n");
 	fprintf(stream, "    -v bin    Verify the SPI flash contains this data\n");
 	fprintf(stream, "    -s out    Save the SPI flash contents to this file\n");
-	fprintf(stream, "    -2 pin    Use this pin number as QSPI IO2\n");
-	fprintf(stream, "    -3 pin    Use this pin number as QSPI IO3\n");
+	fprintf(stream, "    -g ps     Set the pin assignment with the given pinspec\n");
+	fprintf(stream, "You can remap various pins with -g.  The format is [name]:[number].\n");
+	fprintf(stream, "\n");
+	print_pinspec(stream);
 	return 0;
 }
 
@@ -124,15 +163,8 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	while ((opt = getopt(argc, argv, "hp:rf:w:s:2:3:v:")) != -1) {
+	while ((opt = getopt(argc, argv, "hp:rf:w:s:2:3:v:g:")) != -1) {
 		switch (opt) {
-		case '2':
-			spiSetPin(spi, SP_D2, strtoul(optarg, NULL, 0));
-			break;
-
-		case '3':
-			spiSetPin(spi, SP_D3, strtoul(optarg, NULL, 0));
-			break;
 
 		case 'r':
 			op = OP_FPGA_RESET;
@@ -141,6 +173,24 @@ int main(int argc, char **argv) {
 		case 'p':
 			op = OP_SPI_PEEK;
 			peek_offset = strtoul(optarg, NULL, 0);
+			break;
+
+		case 'g':
+			if ((optarg[0] == '\0') || (optarg[1] != ':')) {
+				fprintf(stderr, "-g requires a pinspec.  Usage:\n");
+				print_pinspec(stderr);
+				return 1;
+			}
+
+			spiSetPin(spi, pinspec_to_pinname(optarg[0]), strtoul(optarg+2, NULL, 0));
+			break;
+
+		case '2':
+			spiSetPin(spi, SP_D2, strtoul(optarg, NULL, 0));
+			break;
+
+		case '3':
+			spiSetPin(spi, SP_D3, strtoul(optarg, NULL, 0));
 			break;
 
 		case 'f':
