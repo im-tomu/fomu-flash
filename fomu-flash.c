@@ -78,11 +78,11 @@ enum op {
 int print_help(FILE *stream, const char *progname) {
 	fprintf(stream, "Fomu Raspberry Pi Flash Utilities\n");
 	fprintf(stream, "Usage:\n");
-	fprintf(stream, "    %s [-h] [-r] [-p] [-f bin] [-w bin] [-v bin] [-s out] [-2 pin] [-3 pin]\n", progname);
+	fprintf(stream, "    %s [-h] [-r] [-p offset] [-f bin] [-w bin] [-v bin] [-s out] [-2 pin] [-3 pin]\n", progname);
 	fprintf(stream, "Flags:\n");
 	fprintf(stream, "    -h        This help page\n");
 	fprintf(stream, "    -r        Reset the FPGA and have it boot from SPI\n");
-	fprintf(stream, "    -p        Peek at the first 256 bytes of SPI flash\n");
+	fprintf(stream, "    -p offset Peek at 256 bytes of SPI flash at the specified offset\n");
 	fprintf(stream, "    -f bin    Load this binary directly into the FPGA\n");
 	fprintf(stream, "    -w bin    Write this binary into the SPI flash chip\n");
 	fprintf(stream, "    -v bin    Verify the SPI flash contains this data\n");
@@ -98,6 +98,7 @@ int main(int argc, char **argv) {
 	char *op_filename = NULL;
 	struct ff_spi *spi;
 	struct ff_fpga *fpga;
+	int peek_offset = 0;
 	enum op op = OP_UNKNOWN;
 
  	spi = spiAlloc();
@@ -123,7 +124,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	while ((opt = getopt(argc, argv, "hprf:w:s:2:3:v:")) != -1) {
+	while ((opt = getopt(argc, argv, "hp:rf:w:s:2:3:v:")) != -1) {
 		switch (opt) {
 		case '2':
 			spiSetPin(spi, SP_D2, strtoul(optarg, NULL, 0));
@@ -139,6 +140,7 @@ int main(int argc, char **argv) {
 
 		case 'p':
 			op = OP_SPI_PEEK;
+			peek_offset = strtoul(optarg, NULL, 0);
 			break;
 
 		case 'f':
@@ -274,9 +276,9 @@ offset, file_src[offset], spi_src[offset]);
 	case OP_SPI_PEEK: {
 		fpgaReset(fpga);
 		spiSetType(spi, ST_QPI);
-		uint8_t page0[256];
-		spiRead(spi, 0, page0, sizeof(page0));
-		print_hex(page0, sizeof(page0), 0);
+		uint8_t page[256];
+		spiRead(spi, peek_offset, page, sizeof(page));
+		print_hex_offset(stdout, page, sizeof(page), 0, 0);
 		break;
 	}
 
