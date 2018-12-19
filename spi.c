@@ -18,6 +18,9 @@ enum ff_spi_quirks {
 	// Don't issue a "Write Enable" command prior to writing
 	// a status register
 	SQ_SKIP_SR_WEL     = (1 << 1),
+
+	// Security registers are shifted up by 4 bits
+	SQ_SECURITY_NYBBLE_SHIFT = (1 << 2),
 };
 
 struct ff_spi {
@@ -334,7 +337,10 @@ uint8_t spiReadStatus(struct ff_spi *spi, uint8_t sr) {
 	return val;
 }
 
-void spiWriteSecurity(struct ff_spi *spi, uint8_t sr, uint8_t val) {
+void spiWriteSecurity(struct ff_spi *spi, uint8_t sr, uint8_t security[256]) {
+
+	if (spi->quirks & SQ_SECURITY_NYBBLE_SHIFT)
+		sr <<= 4;
 
 	spiBegin(spi);
 	spiCommand(spi, 0x06);
@@ -342,13 +348,30 @@ void spiWriteSecurity(struct ff_spi *spi, uint8_t sr, uint8_t val) {
 
 	spiBegin(spi);
 	spiCommand(spi, 0x42);
-	spiCommand(spi, 0x00);
-	spiCommand(spi, sr);
-	spiCommand(spi, 0x00);
-	spiCommand(spi, val);
+	spiCommand(spi, 0x00); // A23-16
+	spiCommand(spi, sr);   // A15-8
+	spiCommand(spi, 0x00); // A0-7
+	int i;
+	for (i = 0; i < 256; i++)
+		spiCommand(spi, security[i]);
 	spiEnd(spi);
 
 	spi_get_id(spi);
+}
+
+void spiReadSecurity(struct ff_spi *spi, uint8_t sr, uint8_t security[256]) {
+	if (spi->quirks & SQ_SECURITY_NYBBLE_SHIFT)
+		sr <<= 4;
+
+	spiBegin(spi);
+	spiCommand(spi, 0x48);	// Read security registers
+	spiCommand(spi, 0x00);  // A23-16
+	spiCommand(spi, sr);    // A15-8
+	spiCommand(spi, 0x00);  // A0-7
+	int i;
+	for (i = 0; i < 256; i++)
+		security[i] = spiCommandRx(spi);
+	spiEnd(spi);
 }
 
 void spiWriteStatus(struct ff_spi *spi, uint8_t sr, uint8_t val) {
@@ -493,16 +516,6 @@ static void spi_get_id(struct ff_spi *spi) {
 	spi->id.serial[1] = spiCommandRx(spi);
 	spi->id.serial[2] = spiCommandRx(spi);
 	spi->id.serial[3] = spiCommandRx(spi);
-	spiEnd(spi);
-
-	spiBegin(spi);
-	spiCommand(spi, 0x48);	// Read security registers
-	spiCommand(spi, 0x00);  // Dummy byte 1
-	spiCommand(spi, 0x00);  // Dummy byte 2
-	spiCommand(spi, 0x00);  // Dummy byte 3
-	spi->id.security[0] = spiCommandRx(spi);
-	spi->id.security[1] = spiCommandRx(spi);
-	spi->id.security[2] = spiCommandRx(spi);
 	spiEnd(spi);
 
 	spi_decode_id(spi);
@@ -737,7 +750,7 @@ int spiInit(struct ff_spi *spi) {
 	if (spi->id.manufacturer_id == 0x1f)
 		spi->quirks |= SQ_SR2_FROM_SR1;
 	if (spi->id.manufacturer_id == 0xef)
-		spi->quirks |= SQ_SKIP_SR_WEL;
+		spi->quirks |= SQ_SKIP_SR_WEL | SQ_SECURITY_NYBBLE_SHIFT;
 
 	return 0;
 }
