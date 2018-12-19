@@ -399,8 +399,6 @@ struct spi_id spiId(struct ff_spi *spi) {
 
 	return id;
 }
-		
-uint32_t spiJedecId(struct ff_spi *spi);
 
 int spiSetType(struct ff_spi *spi, enum spi_type type) {
 
@@ -598,7 +596,6 @@ uint8_t spiReset(struct ff_spi *spi) {
 int spiInit(struct ff_spi *spi) {
 	spi->state = SS_UNCONFIGURED;
 	spi->type = ST_UNCONFIGURED;
-
 
 	// Reset the SPI flash, which will return it to SPI mode even
 	// if it's in QPI mode.
