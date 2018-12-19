@@ -312,6 +312,9 @@ int main(int argc, char **argv) {
 		printf("Memory type: %02x\n", id.memory_type);
 		printf("Memory size: %02x\n", id.memory_size);
 		printf("Serial number: %02x %02x %02x %02x\n", id.serial[0], id.serial[1], id.serial[2], id.serial[3]);
+		printf("SR1: %02x\n", spiReadSr(spi, 1));
+		printf("SR2: %02x\n", spiReadSr(spi, 2));
+		printf("SR3: %02x\n", spiReadSr(spi, 3));
 		break;
 	}
 
