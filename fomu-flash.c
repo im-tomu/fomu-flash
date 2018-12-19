@@ -71,6 +71,8 @@ enum op {
 	OP_SPI_VERIFY,
 	OP_SPI_PEEK,
 	OP_SPI_ID,
+	OP_SPI_SECURITY_READ,
+	OP_SPI_SECURITY_WRITE,
 	OP_FPGA_BOOT,
 	OP_FPGA_RESET,
 	OP_UNKNOWN,
@@ -122,13 +124,14 @@ static int print_program_modes(FILE *stream) {
 	fprintf(stream, "    -w bin    Write this binary into the SPI flash chip\n");
 	fprintf(stream, "    -v bin    Verify the SPI flash contains this data\n");
 	fprintf(stream, "    -s out    Save the SPI flash contents to this file\n");
+	fprintf(stream, "    -k n[:f]  Read security register [n], or update it with the contents of file [f]\n");
 	return 0;
 }
 
 static int print_help(FILE *stream, const char *progname) {
 	fprintf(stream, "Fomu Raspberry Pi Flash Utilities\n");
 	fprintf(stream, "Usage:\n");
-	fprintf(stream, "%15s (-[hri] | [-p offset] | [-f bin] | [-w bin] | [-v bin] | [-s out])\n", progname);
+	fprintf(stream, "%15s (-[hri] | [-p offset] | [-f bin] | [-w bin] | [-v bin] | [-s out] | [-k n[:f]])\n", progname);
 	fprintf(stream, "                [-g pinspec] [-t spitype] [-r]\n");
 	fprintf(stream, "Program mode (pick one):\n");
 	print_program_modes(stream);
@@ -160,6 +163,8 @@ int main(int argc, char **argv) {
 	struct ff_spi *spi;
 	struct ff_fpga *fpga;
 	int peek_offset = 0;
+	uint8_t security_reg;
+	uint8_t security_val[256];
 	enum op op = OP_UNKNOWN;
 	enum spi_type spi_type = ST_SINGLE;
 
@@ -186,7 +191,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	while ((opt = getopt(argc, argv, "hip:rf:w:s:2:3:v:g:t:")) != -1) {
+	while ((opt = getopt(argc, argv, "hip:rf:w:s:2:3:v:g:t:k:")) != -1) {
 		switch (opt) {
 
 		case 'r':
@@ -194,6 +199,34 @@ int main(int argc, char **argv) {
 				return print_usage_error(stdout);
 			op = OP_FPGA_RESET;
 			break;
+
+		case 'k': {
+			if (op != OP_UNKNOWN)
+				return print_usage_error(stdout);
+			char *security_filename = strchr(optarg, ':');
+
+			security_reg = strtoul(optarg, NULL, 0);
+			if (security_filename) {
+				security_filename++;
+				op = OP_SPI_SECURITY_WRITE;
+				int fd;
+				fd = open(security_filename, O_RDONLY);
+				if (fd == -1) {
+					perror("couldn't open security file");
+					return 1;
+				}
+				memset(security_val, 0, sizeof(security_val));
+				if (-1 == read(fd, security_val, sizeof(security_val))) {
+					perror("couldn't read from security file");
+					return 2;
+				}
+				close(fd);
+			}
+			else {
+				op = OP_SPI_SECURITY_READ;
+			}
+			break;
+		}
 
 		case 'i':
 			if (op != OP_UNKNOWN)
@@ -312,9 +345,23 @@ int main(int argc, char **argv) {
 		if (id.device_id != id.signature)
 			printf("!! Electronic Signature: %02x\n", id.signature);
 		printf("Serial number: %02x %02x %02x %02x\n", id.serial[0], id.serial[1], id.serial[2], id.serial[3]);
-		printf("SR1: %02x\n", spiReadSr(spi, 1));
-		printf("SR2: %02x\n", spiReadSr(spi, 2));
-		printf("SR3: %02x\n", spiReadSr(spi, 3));
+		printf("Status 1: %02x\n", spiReadStatus(spi, 1));
+		printf("Status 2: %02x\n", spiReadStatus(spi, 2));
+		printf("Status 3: %02x\n", spiReadStatus(spi, 3));
+		break;
+	}
+
+	case OP_SPI_SECURITY_WRITE: {
+		printf("Updating security register %d.\n", security_reg);
+		spiWriteSecurity(spi, security_reg, security_val);
+		break;
+	}
+
+	case OP_SPI_SECURITY_READ: {
+		uint8_t security[256];
+		printf("Security register %d contents:\n", security_reg);
+		spiReadSecurity(spi, security_reg, security);
+		print_hex(security, sizeof(security), 0);
 		break;
 	}
 
