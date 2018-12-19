@@ -572,6 +572,7 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 	uint32_t erase_addr;
 	for (erase_addr = 0; erase_addr < count; erase_addr += 32768) {
 		printf("\rErasing @ %06x", erase_addr);
+		fflush(stdout);
 		spiBegin(spi);
 		spiCommand(spi, 0x06);
 		spiEnd(spi);
@@ -606,6 +607,7 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 	printf("\n");
 	while (count) {
 		printf("\rProgramming @ %06x", addr);
+		fflush(stdout);
 		spiBegin(spi);
 		spiCommand(spi, 0x06);
 		spiEnd(spi);
