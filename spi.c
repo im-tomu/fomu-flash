@@ -29,6 +29,7 @@ struct ff_spi {
 	enum spi_type desired_type;
 	struct spi_id id;
 	enum ff_spi_quirks quirks;
+	int size_override;
 
 	struct {
 		int clk;
@@ -457,6 +458,7 @@ static void spi_decode_id(struct ff_spi *spi) {
 	spi->id.manufacturer = "unknown";
 	spi->id.model = "unknown";
 	spi->id.capacity = "unknown";
+	spi->id.bytes = -1; // unknown
 
 	if (spi->id.manufacturer_id == 0xef) {
 		spi->id.manufacturer = "Winbond";
@@ -464,6 +466,7 @@ static void spi_decode_id(struct ff_spi *spi) {
 		 && (spi->id.memory_size == 0x18)) {
 			spi->id.model = "W25Q128JV";
 			spi->id.capacity = "128 Mbit";
+			spi->id.bytes = 16 * 1024 * 1024;
 		}
 	}
 
@@ -473,6 +476,7 @@ static void spi_decode_id(struct ff_spi *spi) {
 		  && (spi->id.memory_size == 0x01)) {
 			spi->id.model = "AT25SF161";
 			spi->id.capacity = "16 Mbit";
+			spi->id.bytes = 1 * 1024 * 1024;
 		}
 	}
 
@@ -520,6 +524,16 @@ static void spi_get_id(struct ff_spi *spi) {
 
 	spi_decode_id(spi);
 	return;
+}
+
+void spiOverrideSize(struct ff_spi *spi, uint32_t size) {
+	spi->size_override = size;
+
+	// If size is 0, re-read the capacity
+	if (!size)
+		spi_decode_id(spi);
+	else
+		spi->id.bytes = size;
 }
 
 int spiSetType(struct ff_spi *spi, enum spi_type type) {
@@ -606,8 +620,14 @@ int spiRead(struct ff_spi *spi, uint32_t addr, uint8_t *data, unsigned int count
 	spiCommand(spi, addr >> 8);
 	spiCommand(spi, addr >> 0);
 	spiCommand(spi, 0x00);
-	for (i = 0; i < count; i++)
+	for (i = 0; i < count; i++) {
+		if ((i & 0x3fff) == 0) {
+			printf("\rReading @ %06x / %06x", i, count);
+			fflush(stdout);
+		}
 		data[i] = spiRx(spi);
+	}
+	printf("\rReading @ %06x / %06x Done\n", i, count);
 
 	spiEnd(spi);
 	return 0;
@@ -644,8 +664,9 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 	// Erase all applicable blocks
 	uint32_t erase_addr;
 	for (erase_addr = 0; erase_addr < count; erase_addr += 32768) {
-		printf("\rErasing @ %06x", erase_addr);
+		printf("\rErasing @ %06x / %06x", erase_addr, count);
 		fflush(stdout);
+
 		spiBegin(spi);
 		spiCommand(spi, 0x06);
 		spiEnd(spi);
@@ -659,6 +680,7 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 
 		spi_wait_for_not_busy(spi);
 	}
+	printf("  Done\n");
 
 	uint8_t write_cmd;
 	switch (spi->type) {
@@ -677,9 +699,9 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 		return 1;
 	}
 
-	printf("\n");
+	int total = count;
 	while (count) {
-		printf("\rProgramming @ %06x", addr);
+		printf("\rProgramming @ %06x / %06x", addr, total);
 		fflush(stdout);
 		spiBegin(spi);
 		spiCommand(spi, 0x06);
@@ -701,7 +723,8 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 		addr += i;
 		spi_wait_for_not_busy(spi);
 	}
-	printf("\n");
+	printf("\rProgramming @ %06x / %06x", addr, total);
+	printf("  Done\n");
 	return 0;
 }
 

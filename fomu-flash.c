@@ -132,12 +132,13 @@ static int print_help(FILE *stream, const char *progname) {
 	fprintf(stream, "Fomu Raspberry Pi Flash Utilities\n");
 	fprintf(stream, "Usage:\n");
 	fprintf(stream, "%15s (-[hri] | [-p offset] | [-f bin] | [-w bin] | [-v bin] | [-s out] | [-k n[:f]])\n", progname);
-	fprintf(stream, "                [-g pinspec] [-t spitype] [-r]\n");
+	fprintf(stream, "                [-g pinspec] [-t spitype] [-b bytes]\n");
 	fprintf(stream, "Program mode (pick one):\n");
 	print_program_modes(stream);
 	fprintf(stream, "Configuration options:\n");
 	fprintf(stream, "    -g ps     Set the pin assignment with the given pinspec\n");
 	fprintf(stream, "    -t type   Set the number of bits to use for SPI (1, 2, 4, or Q)\n");
+	fprintf(stream, "    -b bytes  Override the size of the SPI flash, in bytes\n");
 	fprintf(stream, "You can remap various pins with -g.  The format is [name]:[number].\n");
 	fprintf(stream, "\n");
 	fprintf(stream, "The width of SPI can be set with 't [width]'.  Valid widths are:\n");
@@ -163,6 +164,7 @@ int main(int argc, char **argv) {
 	struct ff_spi *spi;
 	struct ff_fpga *fpga;
 	int peek_offset = 0;
+	int spi_flash_bytes = -1;
 	uint8_t security_reg;
 	uint8_t security_val[256];
 	enum op op = OP_UNKNOWN;
@@ -191,13 +193,17 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	while ((opt = getopt(argc, argv, "hip:rf:w:s:2:3:v:g:t:k:")) != -1) {
+	while ((opt = getopt(argc, argv, "hip:rf:b:w:s:2:3:v:g:t:k:")) != -1) {
 		switch (opt) {
 
 		case 'r':
 			if (op != OP_UNKNOWN)
 				return print_usage_error(stdout);
 			op = OP_FPGA_RESET;
+			break;
+
+		case 'b':
+			spi_flash_bytes = strtoul(optarg, NULL, 0);
 			break;
 
 		case 'k': {
@@ -332,6 +338,9 @@ int main(int argc, char **argv) {
 	spiSetType(spi, spi_type);
 	fpgaReset(fpga);
 
+	if (spi_flash_bytes != -1)
+		spiOverrideSize(spi, spi_flash_bytes);
+
 	switch (op) {
 	case OP_SPI_ID: {
 		struct spi_id id = spiId(spi);
@@ -366,15 +375,25 @@ int main(int argc, char **argv) {
 	}
 
 	case OP_SPI_READ: {
+		struct spi_id id = spiId(spi);
+		if (id.bytes == -1) {
+			fprintf(stderr, "unknown spi flash size -- specify with -b\n");
+			return 1;
+		}
+
 		fd = open(op_filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
 		if (fd == -1) {
 			perror("unable to open output file");
 			break;
 		}
-		uint8_t *bfr = malloc(16777216);
-		spiRead(spi, 0, bfr, 16777216);
-		if (write(fd, bfr, 16777216) != 16777216) {
-			perror("unable to write SPI flash image");
+		uint8_t *bfr = malloc(id.bytes);
+		if (!bfr) {
+			perror("unable to allocate memory for spi");
+			return 1;
+		}
+		spiRead(spi, 0, bfr, id.bytes);
+		if (write(fd, bfr, id.bytes) != id.bytes) {
+			perror("unable to write SPI flash image to disk");
 			break;
 		}
 		close(fd);
