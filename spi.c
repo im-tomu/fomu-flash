@@ -590,6 +590,11 @@ uint8_t spiReset(struct ff_spi *spi) {
 	spiEnd(spi);
 
 	usleep(30);
+
+	spiBegin(spi);
+	spiCommand(spi, 0xab); // "Resume from Deep Power-Down" command
+	spiEnd(spi);
+
 	return 0;
 }
 
