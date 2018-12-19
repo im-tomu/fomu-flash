@@ -302,15 +302,15 @@ int main(int argc, char **argv) {
 	switch (op) {
 	case OP_SPI_ID: {
 		struct spi_id id = spiId(spi);
-		printf("Device ID: %02x\n", id.device_id);
-		if (id.device_id != id.signature)
-			printf("!! Electronic Signature: %02x\n", id.signature);
-		printf("Manufacturer ID: %02x\n", id.manufacturer_id);
+		printf("Manufacturer ID: %s (%02x)\n", id.manufacturer, id.manufacturer_id);
 		if (id.manufacturer_id != id._manufacturer_id)
 			printf("!! JEDEC Manufacturer ID: %02x\n",
 			id._manufacturer_id);
-		printf("Memory type: %02x\n", id.memory_type);
-		printf("Memory size: %02x\n", id.memory_size);
+		printf("Memory model: %s (%02x)\n", id.model, id.memory_type);
+		printf("Memory size: %s (%02x)\n", id.capacity, id.memory_size);
+		printf("Device ID: %02x\n", id.device_id);
+		if (id.device_id != id.signature)
+			printf("!! Electronic Signature: %02x\n", id.signature);
 		printf("Serial number: %02x %02x %02x %02x\n", id.serial[0], id.serial[1], id.serial[2], id.serial[3]);
 		printf("SR1: %02x\n", spiReadSr(spi, 1));
 		printf("SR2: %02x\n", spiReadSr(spi, 2));
