@@ -522,6 +522,7 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 	// Erase all applicable blocks
 	uint32_t erase_addr;
 	for (erase_addr = 0; erase_addr < count; erase_addr += 32768) {
+		printf("\rErasing @ %06x", erase_addr);
 		spiBegin(spi);
 		spiCommand(spi, 0x06);
 		spiEnd(spi);
@@ -553,10 +554,16 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 		return 1;
 	}
 
+	printf("\n");
 	while (count) {
+		printf("\rProgramming @ %06x", addr);
 		spiBegin(spi);
 		spiCommand(spi, 0x06);
 		spiEnd(spi);
+
+		uint8_t sr1 = spiReadSr(spi, 1);
+		if (!(sr1 & (1 << 1)))
+			fprintf(stderr, "error: write-enable latch (WEL) not set, write will probably fail\n");
 
 		spiBegin(spi);
 		spiCommand(spi, write_cmd);
@@ -570,6 +577,7 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 		addr += i;
 		spi_wait_for_not_busy(spi);
 	}
+	printf("\n");
 	return 0;
 }
 
