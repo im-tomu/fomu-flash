@@ -42,6 +42,7 @@ struct spi_id {
 	uint8_t memory_size;		// Result from 0x9f
 	uint8_t signature;		// Result from 0xab
 	uint8_t serial[4];		// Result from 0x4b
+	uint8_t security[3];		// Result from 0x48
 	const char *manufacturer;
 	const char *model;
 	const char *capacity;
@@ -62,8 +63,9 @@ void spiCommand(struct ff_spi *spi, uint8_t cmd);
 //uint8_t spiQuadRx(struct ff_spi *spi);
 int spiTx(struct ff_spi *spi, uint8_t word);
 uint8_t spiRx(struct ff_spi *spi);
-uint8_t spiReadSr(struct ff_spi *spi, int sr);
-void spiWriteSr(struct ff_spi *spi, int sr, uint8_t val);
+uint8_t spiReadStatus(struct ff_spi *spi, uint8_t sr);
+void spiWriteStatus(struct ff_spi *spi, uint8_t sr, uint8_t val);
+void spiWriteSecurity(struct ff_spi *spi, uint8_t sr, uint8_t val);
 int spiSetType(struct ff_spi *spi, enum spi_type type);
 int spiRead(struct ff_spi *spi, uint32_t addr, uint8_t *data, unsigned int count);
 

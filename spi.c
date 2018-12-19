@@ -41,6 +41,8 @@ struct ff_spi {
 	} pins;
 };
 
+static void spi_get_id(struct ff_spi *spi);
+
 static void spi_set_state(struct ff_spi *spi, enum spi_state state) {
 	if (spi->state == state)
 		return;
@@ -299,7 +301,7 @@ uint8_t spiCommandRx(struct ff_spi *spi) {
 		return spiSingleRx(spi);
 }
 
-uint8_t spiReadSr(struct ff_spi *spi, int sr) {
+uint8_t spiReadStatus(struct ff_spi *spi, uint8_t sr) {
 	uint8_t val = 0xff;
 
 	switch (sr) {
@@ -332,7 +334,24 @@ uint8_t spiReadSr(struct ff_spi *spi, int sr) {
 	return val;
 }
 
-void spiWriteSr(struct ff_spi *spi, int sr, uint8_t val) {
+void spiWriteSecurity(struct ff_spi *spi, uint8_t sr, uint8_t val) {
+
+	spiBegin(spi);
+	spiCommand(spi, 0x06);
+	spiEnd(spi);
+
+	spiBegin(spi);
+	spiCommand(spi, 0x42);
+	spiCommand(spi, 0x00);
+	spiCommand(spi, sr);
+	spiCommand(spi, 0x00);
+	spiCommand(spi, val);
+	spiEnd(spi);
+
+	spi_get_id(spi);
+}
+
+void spiWriteStatus(struct ff_spi *spi, uint8_t sr, uint8_t val) {
 
 	switch (sr) {
 	case 1:
@@ -355,7 +374,7 @@ void spiWriteSr(struct ff_spi *spi, int sr, uint8_t val) {
 	case 2: {
 		uint8_t sr1 = 0x00;
 		if (spi->quirks & SQ_SR2_FROM_SR1)
-			sr1 = spiReadSr(spi, 1);
+			sr1 = spiReadStatus(spi, 1);
 
 		if (!(spi->quirks & SQ_SKIP_SR_WEL)) {
 			spiBegin(spi);
@@ -476,6 +495,16 @@ static void spi_get_id(struct ff_spi *spi) {
 	spi->id.serial[3] = spiCommandRx(spi);
 	spiEnd(spi);
 
+	spiBegin(spi);
+	spiCommand(spi, 0x48);	// Read security registers
+	spiCommand(spi, 0x00);  // Dummy byte 1
+	spiCommand(spi, 0x00);  // Dummy byte 2
+	spiCommand(spi, 0x00);  // Dummy byte 3
+	spi->id.security[0] = spiCommandRx(spi);
+	spi->id.security[1] = spiCommandRx(spi);
+	spi->id.security[2] = spiCommandRx(spi);
+	spiEnd(spi);
+
 	spi_decode_id(spi);
 	return;
 }
@@ -515,7 +544,7 @@ int spiSetType(struct ff_spi *spi, enum spi_type type) {
 		}
 
 		// Enable QE bit
-		spiWriteSr(spi, 2, spiReadSr(spi, 2) | (1 << 1));
+		spiWriteStatus(spi, 2, spiReadStatus(spi, 2) | (1 << 1));
 
 		spi->type = type;
 		spi_set_state(spi, SS_QUAD_TX);
@@ -523,7 +552,7 @@ int spiSetType(struct ff_spi *spi, enum spi_type type) {
 
 	case ST_QPI:
 		// Enable QE bit
-		spiWriteSr(spi, 2, spiReadSr(spi, 2) | (1 << 1));
+		spiWriteStatus(spi, 2, spiReadStatus(spi, 2) | (1 << 1));
 
 		spiBegin(spi);
 		spiCommand(spi, 0x38);		// Enter QPI Mode
@@ -573,10 +602,10 @@ int spiRead(struct ff_spi *spi, uint32_t addr, uint8_t *data, unsigned int count
 
 static int spi_wait_for_not_busy(struct ff_spi *spi) {
 	uint8_t sr1;
-	sr1 = spiReadSr(spi, 1);
+	sr1 = spiReadStatus(spi, 1);
 
 	do {
-		sr1 = spiReadSr(spi, 1);
+		sr1 = spiReadStatus(spi, 1);
 	} while (sr1 & (1 << 0));
 	return 0;
 }
@@ -643,7 +672,7 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 		spiCommand(spi, 0x06);
 		spiEnd(spi);
 
-		uint8_t sr1 = spiReadSr(spi, 1);
+		uint8_t sr1 = spiReadStatus(spi, 1);
 		if (!(sr1 & (1 << 1)))
 			fprintf(stderr, "error: write-enable latch (WEL) not set, write will probably fail\n");
 
