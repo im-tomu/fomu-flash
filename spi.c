@@ -329,8 +329,15 @@ uint8_t spiReadSr(struct ff_spi *spi, int sr) {
 }
 
 void spiWriteSr(struct ff_spi *spi, int sr, uint8_t val) {
+
 	switch (sr) {
 	case 1:
+		if (!(spi->quirks & SQ_SKIP_SR_WEL)) {
+			spiBegin(spi);
+			spiCommand(spi, 0x06);
+			spiEnd(spi);
+		}
+
 		spiBegin(spi);
 		spiCommand(spi, 0x50);
 		spiEnd(spi);
@@ -341,18 +348,44 @@ void spiWriteSr(struct ff_spi *spi, int sr, uint8_t val) {
 		spiEnd(spi);
 		break;
 
-	case 2:
+	case 2: {
+		uint8_t sr1 = 0x00;
+		if (spi->quirks & SQ_SR2_FROM_SR1)
+			sr1 = spiReadSr(spi, 1);
+
+		if (!(spi->quirks & SQ_SKIP_SR_WEL)) {
+			spiBegin(spi);
+			spiCommand(spi, 0x06);
+			spiEnd(spi);
+		}
+
+
 		spiBegin(spi);
 		spiCommand(spi, 0x50);
 		spiEnd(spi);
 
 		spiBegin(spi);
-		spiCommand(spi, 0x31);
-		spiCommand(spi, val);
+		if (spi->quirks & SQ_SR2_FROM_SR1) {
+			spiCommand(spi, 0x01);
+			spiCommand(spi, sr1);
+			spiCommand(spi, val);
+		}
+		else {
+			spiCommand(spi, 0x31);
+			spiCommand(spi, val);
+		}
 		spiEnd(spi);
 		break;
+	}
 
 	case 3:
+		if (!(spi->quirks & SQ_SKIP_SR_WEL)) {
+			spiBegin(spi);
+			spiCommand(spi, 0x06);
+			spiEnd(spi);
+		}
+
+
 		spiBegin(spi);
 		spiCommand(spi, 0x50);
 		spiEnd(spi);
@@ -630,8 +663,15 @@ int spiInit(struct ff_spi *spi) {
 
 	// Have the SPI flash pay attention to us
 	gpioWrite(spi->pins.hold, 1);
+
 	// Disable WP
 	gpioWrite(spi->pins.wp, 1);
+
+	spi->id = spiId(spi);
+	if (spi->id.manufacturer_id == 0x1f)
+		spi->quirks |= SQ_SR2_FROM_SR1;
+	if (spi->id.manufacturer_id == 0xef)
+		spi->quirks |= SQ_SKIP_SR_WEL;
 
 	return 0;
 }
