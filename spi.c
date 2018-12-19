@@ -116,6 +116,10 @@ void spiPause(struct ff_spi *spi) {
 
 void spiBegin(struct ff_spi *spi) {
 	spi_set_state(spi, SS_SINGLE);
+	if ((spi->type == ST_SINGLE) || (spi->type == ST_DUAL)) {
+		gpioWrite(spi->pins.wp, 1);
+		gpioWrite(spi->pins.hold, 1);
+	}
 	gpioWrite(spi->pins.cs, 0);
 }
 
@@ -302,21 +306,21 @@ uint8_t spiReadSr(struct ff_spi *spi, int sr) {
 	case 1:
 		spiBegin(spi);
 		spiCommand(spi, 0x05);
-		val = spiRx(spi);
+		val = spiCommandRx(spi);
 		spiEnd(spi);
 		break;
 
 	case 2:
 		spiBegin(spi);
 		spiCommand(spi, 0x35);
-		val = spiRx(spi);
+		val = spiCommandRx(spi);
 		spiEnd(spi);
 		break;
 
 	case 3:
 		spiBegin(spi);
 		spiCommand(spi, 0x15);
-		val = spiRx(spi);
+		val = spiCommandRx(spi);
 		spiEnd(spi);
 		break;
 
