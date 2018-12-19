@@ -407,23 +407,53 @@ void spiWriteSr(struct ff_spi *spi, int sr, uint8_t val) {
 }
 
 struct spi_id spiId(struct ff_spi *spi) {
-	struct spi_id id;
-	memset(&id, 0xff, sizeof(id));
+	return spi->id;
+}
+
+static void spi_decode_id(struct ff_spi *spi) {
+
+	spi->id.manufacturer = "unknown";
+	spi->id.model = "unknown";
+	spi->id.capacity = "unknown";
+
+	if (spi->id.manufacturer_id == 0xef) {
+		spi->id.manufacturer = "Winbond";
+		if ((spi->id.memory_type == 0x70)
+		 && (spi->id.memory_size == 0x18)) {
+			spi->id.model = "W25Q128JV";
+			spi->id.capacity = "128 Mbit";
+		}
+	}
+
+	if (spi->id.manufacturer_id == 0x1f) {
+		spi->id.manufacturer = "Adesto";
+		 if ((spi->id.memory_type == 0x86)
+		  && (spi->id.memory_size == 0x01)) {
+			spi->id.model = "AT25SF161";
+			spi->id.capacity = "16 Mbit";
+		}
+	}
+
+	return;
+}
+
+static void spi_get_id(struct ff_spi *spi) {
+	memset(&spi->id, 0xff, sizeof(spi->id));
 
 	spiBegin(spi);
 	spiCommand(spi, 0x90);	// Read manufacturer ID
 	spiCommand(spi, 0x00);  // Dummy byte 1
 	spiCommand(spi, 0x00);  // Dummy byte 2
 	spiCommand(spi, 0x00);  // Dummy byte 3
-	id.manufacturer_id = spiCommandRx(spi);
-	id.device_id = spiCommandRx(spi);
+	spi->id.manufacturer_id = spiCommandRx(spi);
+	spi->id.device_id = spiCommandRx(spi);
 	spiEnd(spi);
 
 	spiBegin(spi);
 	spiCommand(spi, 0x9f);	// Read device id
-	id._manufacturer_id = spiCommandRx(spi);
-	id.memory_type = spiCommandRx(spi);
-	id.memory_size = spiCommandRx(spi);
+	spi->id._manufacturer_id = spiCommandRx(spi);
+	spi->id.memory_type = spiCommandRx(spi);
+	spi->id.memory_size = spiCommandRx(spi);
 	spiEnd(spi);
 
 	spiBegin(spi);
@@ -431,7 +461,7 @@ struct spi_id spiId(struct ff_spi *spi) {
 	spiCommand(spi, 0x00);  // Dummy byte 1
 	spiCommand(spi, 0x00);  // Dummy byte 2
 	spiCommand(spi, 0x00);  // Dummy byte 3
-	id.signature = spiCommandRx(spi);
+	spi->id.signature = spiCommandRx(spi);
 	spiEnd(spi);
 
 	spiBegin(spi);
@@ -440,13 +470,14 @@ struct spi_id spiId(struct ff_spi *spi) {
 	spiCommand(spi, 0x00);  // Dummy byte 2
 	spiCommand(spi, 0x00);  // Dummy byte 3
 	spiCommand(spi, 0x00);  // Dummy byte 4
-	id.serial[0] = spiCommandRx(spi);
-	id.serial[1] = spiCommandRx(spi);
-	id.serial[2] = spiCommandRx(spi);
-	id.serial[3] = spiCommandRx(spi);
+	spi->id.serial[0] = spiCommandRx(spi);
+	spi->id.serial[1] = spiCommandRx(spi);
+	spi->id.serial[2] = spiCommandRx(spi);
+	spi->id.serial[3] = spiCommandRx(spi);
 	spiEnd(spi);
 
-	return id;
+	spi_decode_id(spi);
+	return;
 }
 
 int spiSetType(struct ff_spi *spi, enum spi_type type) {
@@ -673,7 +704,7 @@ int spiInit(struct ff_spi *spi) {
 	// Disable WP
 	gpioWrite(spi->pins.wp, 1);
 
-	spi->id = spiId(spi);
+	spi_get_id(spi);
 	if (spi->id.manufacturer_id == 0x1f)
 		spi->quirks |= SQ_SR2_FROM_SR1;
 	if (spi->id.manufacturer_id == 0xef)
