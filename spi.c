@@ -10,10 +10,22 @@
 #include "rpi.h"
 #include "spi.h"
 
+enum ff_spi_quirks {
+	// There is no separate "Write SR 2" command.  Instead,
+	// you must write SR2 after writing SR1
+	SQ_SR2_FROM_SR1    = (1 << 0),
+
+	// Don't issue a "Write Enable" command prior to writing
+	// a status register
+	SQ_SKIP_SR_WEL     = (1 << 1),
+};
+
 struct ff_spi {
 	enum spi_state state;
 	enum spi_type type;
 	enum spi_type desired_type;
+	struct spi_id id;
+	enum ff_spi_quirks quirks;
 
 	struct {
 		int clk;
