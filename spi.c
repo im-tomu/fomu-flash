@@ -770,8 +770,9 @@ int spiInit(struct ff_spi *spi) {
 	gpioWrite(spi->pins.wp, 1);
 
 	spi_get_id(spi);
-	if (spi->id.manufacturer_id == 0x1f)
-		spi->quirks |= SQ_SR2_FROM_SR1;
+
+	spi->quirks |= SQ_SR2_FROM_SR1;
+//	if (spi->id.manufacturer_id == 0x1f)
 	if (spi->id.manufacturer_id == 0xef)
 		spi->quirks |= SQ_SKIP_SR_WEL | SQ_SECURITY_NYBBLE_SHIFT;
 
