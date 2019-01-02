@@ -8,6 +8,18 @@ These tools can be used to control an FPGA and its accompanying SPI flash chip.
 
 To build this repository, simply run `make`.
 
+## Test Jig Setup
+
+The EVT boards can be attached directly to the Raspberry Pi as a "hat".  When building a test jig, attach wires according to the following image:
+
+![Raspberry Pi Pinout](pinout.png)
+
+The only pins that are required are 5V, GND, CRESET, SPI_MOSI, SPI_MISO, SPI_CLK, and SPI_CS.
+
+You can improve performance by attaching SPI_IO2 and SPI_IO3 and running `fomu-flash` in quad/qpi mode by specifying `-t 4` or `-t q`.
+
+You can get serial interaction by connecting the UART pins, but they are not necessary for flashing.
+
 ## Loading a Bitstream
 
 The most basic usecase is to load a program into configuration RAM.  This is a very quick process, and can be used for rapid prototyping.
