@@ -47,7 +47,7 @@ It will not reset the FPGA.  To do that, you must re-run with `-r`.
 
 ## Verifying SPI flash
 
-You can verify the SPI flash was programmered with the `-v` command:
+You can verify the SPI flash was programmed with the `-v` command:
 
 ```sh
 # ./tomu-flash -v top.bin
@@ -56,6 +56,3 @@ You can verify the SPI flash was programmered with the `-v` command:
 ## Checking SPI Flash was Written
 
 You can "peek" at 256 bytes of SPI with `-p [offset]`.  This can be used to quickly verify that something was written.
-
-
-numbers seen in https://elinux.org/File:Pi-GPIO-header.png
