@@ -88,8 +88,8 @@ static int pinspec_to_pinname(char code) {
 		case 'i': return SP_MISO;
 		case 'w': return SP_WP;
 		case 'h': return SP_HOLD;
-		case 'k': return SP_CLK;
-		case 'c': return SP_CS;
+		case 'c': return SP_CLK;
+		case 's': return SP_CS;
 		case 'r': return FP_RESET;
 		case 'd': return FP_DONE;
 		default: return -1;
@@ -98,7 +98,7 @@ static int pinspec_to_pinname(char code) {
 
 static int print_pinspec(FILE *stream) {
 	fprintf(stream, "Pinspec:\n");
-	fprintf(stream, " Name   Description    Default\n");
+	fprintf(stream, " Name   Description    Default (BCM pin number)\n");
 	fprintf(stream, "   0    SPI D0         %d\n", S_D0);
 	fprintf(stream, "   1    SPI D1         %d\n", S_D1);
 	fprintf(stream, "   2    SPI D2         %d\n", S_D2);
@@ -107,8 +107,8 @@ static int print_pinspec(FILE *stream) {
 	fprintf(stream, "   i    SPI MISO       %d\n", S_MISO);
 	fprintf(stream, "   w    SPI WP         %d\n", S_WP);
 	fprintf(stream, "   h    SPI HOLD       %d\n", S_HOLD);
-	fprintf(stream, "   k    SPI CLK        %d\n", S_CLK);
-	fprintf(stream, "   c    SPI CS         %d\n", S_CE0);
+	fprintf(stream, "   c    SPI CLK        %d\n", S_CLK);
+	fprintf(stream, "   s    SPI CS         %d\n", S_CE0);
 	fprintf(stream, "   r    FPGA Reset     %d\n", F_RESET);
 	fprintf(stream, "   d    FPGA Done      %d\n", F_DONE);
 	fprintf(stream, "For example: -g i:23    or -g d:27\n");
