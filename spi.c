@@ -347,6 +347,22 @@ void spiWriteSecurity(struct ff_spi *spi, uint8_t sr, uint8_t security[256]) {
 	spiCommand(spi, 0x06);
 	spiEnd(spi);
 
+	// erase the register
+	spiBegin(spi);
+	spiCommand(spi, 0x44);
+	spiCommand(spi, 0x00); // A23-16
+	spiCommand(spi, sr);   // A15-8
+	spiCommand(spi, 0x00); // A0-7
+	spiEnd(spi);
+
+	spi_get_id(spi);
+	sleep(1);
+
+	// write enable
+	spiBegin(spi);
+	spiCommand(spi, 0x06);
+	spiEnd(spi);
+
 	spiBegin(spi);
 	spiCommand(spi, 0x42);
 	spiCommand(spi, 0x00); // A23-16
