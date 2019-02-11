@@ -21,7 +21,7 @@
 #define S_D1 S_MISO
 #define S_D2 S_WP
 #define S_D3 S_HOLD
-#define F_RESET 27
+static unsigned int F_RESET = 27;
 #define F_DONE 17
 
 static inline int isprint(int c)
@@ -170,6 +170,17 @@ int main(int argc, char **argv) {
 	enum op op = OP_UNKNOWN;
 	enum spi_type spi_type = ST_SINGLE;
 
+	if (gpioInitialise() < 0) {
+		fprintf(stderr, "Unable to initialize GPIO\n");
+		return 1;
+	}
+
+	// The original Raspberry Pi boards had a different assignment
+	// of pin 13.  All other boards assign it to BCM 27, but the
+	// original had it as BCM 21.
+	if ((gpioHardwareRevision() == 2) || (gpioHardwareRevision() == 3))
+		F_RESET = 21;
+
  	spi = spiAlloc();
 	fpga = fpgaAlloc();
 
@@ -187,11 +198,6 @@ int main(int argc, char **argv) {
 	fpgaSetPin(fpga, FP_RESET, F_RESET);
 	fpgaSetPin(fpga, FP_DONE, F_DONE);
 	fpgaSetPin(fpga, FP_CS, S_CE0);
-
-	if (gpioInitialise() < 0) {
-		fprintf(stderr, "Unable to initialize GPIO\n");
-		return 1;
-	}
 
 	while ((opt = getopt(argc, argv, "hip:rf:b:w:s:2:3:v:g:t:k:")) != -1) {
 		switch (opt) {
