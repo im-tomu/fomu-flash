@@ -56,3 +56,66 @@ You can verify the SPI flash was programmed with the `-v` command:
 ## Checking SPI Flash was Written
 
 You can "peek" at 256 bytes of SPI with `-p [offset]`.  This can be used to quickly verify that something was written.
+
+## Patching ROM
+
+`fomu-flash` supports patching ROM.  To do this, you must synthesize your bitstream with a fixed random ROM contents.  This is so `fomu-flash` has something to look for.
+
+The Python code for this would look like:
+
+```python
+def xorshift32(x):
+    x = x ^ (x << 13) & 0xffffffff
+    x = x ^ (x >> 17) & 0xffffffff
+    x = x ^ (x << 5)  & 0xffffffff
+    return x & 0xffffffff
+
+def get_rand(x):
+    out = 0
+    for i in range(32):
+        x = xorshift32(x)
+        if (x & 1) == 1:
+            out = out | (1 << i)
+    return out & 0xffffffff
+
+def get_bit(x):
+    return (256 * (x & 7)) + (x >> 3)
+```
+
+And the corresponding C code looks like:
+
+```c
+uint32_t xorshift32(uint32_t x)
+{
+	/* Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs" */
+	x = x ^ (x << 13);
+	x = x ^ (x >> 17);
+	x = x ^ (x << 5);
+	return x;
+}
+
+uint32_t get_rand(uint32_t x) {
+    uint32_t out = 0;
+    int i;
+    for (i = 0; i < 32; i++) {
+        x = xorshift32(x);
+        if ((x & 1) == 1)
+            out = out | (1 << i);
+    }
+    return out;
+}
+
+static uint32_t fill_rand(uint32_t *bfr, int count) {
+    int i;
+    uint32_t last = 1;
+    for (i = 0; i < count / 4; i++) {
+        last = get_rand(last);
+        bfr[i] = last;
+    }
+    return i;
+}
+```
+
+Currently, `fomu-flash` only supports 8192-byte ROMs, though there is no reason why it can't be extended to other sizes.
+
+Specify a ROM to load on the command line with `-l`.
