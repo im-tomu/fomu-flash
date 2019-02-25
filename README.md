@@ -16,7 +16,10 @@ The EVT boards can be attached directly to the Raspberry Pi as a "hat".  When bu
 
 The only pins that are required are 5V, GND, CRESET, SPI_MOSI, SPI_MISO, SPI_CLK, and SPI_CS.
 
-You can improve performance by attaching SPI_IO2 and SPI_IO3 and running `fomu-flash` in quad/qpi mode by specifying `-t 4` or `-t q`.
+The Pi's hardware SPI interface must be enabled in the kernel- use
+`raspi-config` or add `dtparam=spi=on` to `/boot/config.txt` and reboot before
+using.  You can improve performance by attaching SPI_IO2 and SPI_IO3 and running
+`fomu-flash` in quad/qpi mode by specifying `-t 4` or `-t q`.
 
 You can get serial interaction by connecting the UART pins, but they are not necessary for flashing.
 
