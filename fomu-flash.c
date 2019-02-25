@@ -10,6 +10,7 @@
 #include "rpi.h"
 #include "spi.h"
 #include "fpga.h"
+#include "ice40.h"
 
 #define S_MOSI 10
 #define S_MISO 9
@@ -23,6 +24,15 @@
 #define S_D3 S_HOLD
 static unsigned int F_RESET = 27;
 #define F_DONE 17
+
+static int spi_irw_readb(void *data) {
+	return spiRx(data);
+}
+
+static int spi_irw_writeb(void *data, uint8_t b) {
+	spiTx(data, b);
+	return b;
+}
 
 static inline int isprint(int c)
 {
@@ -120,7 +130,8 @@ static int print_program_modes(FILE *stream) {
 	fprintf(stream, "    -r        Reset the FPGA and have it boot from SPI\n");
 	fprintf(stream, "    -i        Print out the SPI ID code\n");
 	fprintf(stream, "    -p offset Peek at 256 bytes of SPI flash at the specified offset\n");
-	fprintf(stream, "    -f bin    Load this binary directly into the FPGA\n");
+	fprintf(stream, "    -f bin    Load this bitstream directly into the FPGA\n");
+	fprintf(stream, "    -l rom    Replace the ROM in the bitstream with this file\n");
 	fprintf(stream, "    -w bin    Write this binary into the SPI flash chip\n");
 	fprintf(stream, "    -v bin    Verify the SPI flash contains this data\n");
 	fprintf(stream, "    -s out    Save the SPI flash contents to this file\n");
@@ -131,10 +142,13 @@ static int print_program_modes(FILE *stream) {
 static int print_help(FILE *stream, const char *progname) {
 	fprintf(stream, "Fomu Raspberry Pi Flash Utilities\n");
 	fprintf(stream, "Usage:\n");
-	fprintf(stream, "%15s (-[hri] | [-p offset] | [-f bin] | [-w bin] | [-v bin] | [-s out] | [-k n[:f]])\n", progname);
+	fprintf(stream, "%15s  (-[hri] | [-p offset] | [-f bitstream] | \n", progname);
+	fprintf(stream, "%15s            [-w bin] | [-v bin] | [-s out] | [-k n[:f]])\n", "");
 	fprintf(stream, "                [-g pinspec] [-t spitype] [-b bytes]\n");
+	fprintf(stream, "\n");
 	fprintf(stream, "Program mode (pick one):\n");
 	print_program_modes(stream);
+	fprintf(stream, "\n");
 	fprintf(stream, "Configuration options:\n");
 	fprintf(stream, "    -g ps     Set the pin assignment with the given pinspec\n");
 	fprintf(stream, "    -t type   Set the number of bits to use for SPI (1, 2, 4, or Q)\n");
@@ -169,6 +183,7 @@ int main(int argc, char **argv) {
 	uint8_t security_val[256];
 	enum op op = OP_UNKNOWN;
 	enum spi_type spi_type = ST_SINGLE;
+	struct irw_file *replacement_rom = NULL;
 
 	if (gpioInitialise() < 0) {
 		fprintf(stderr, "Unable to initialize GPIO\n");
@@ -199,7 +214,7 @@ int main(int argc, char **argv) {
 	fpgaSetPin(fpga, FP_DONE, F_DONE);
 	fpgaSetPin(fpga, FP_CS, S_CE0);
 
-	while ((opt = getopt(argc, argv, "hip:rf:b:w:s:2:3:v:g:t:k:")) != -1) {
+	while ((opt = getopt(argc, argv, "hip:rf:b:w:s:2:3:v:g:t:k:l:")) != -1) {
 		switch (opt) {
 
 		case 'r':
@@ -210,6 +225,14 @@ int main(int argc, char **argv) {
 
 		case 'b':
 			spi_flash_bytes = strtoul(optarg, NULL, 0);
+			break;
+
+		case 'l':
+			replacement_rom = irw_open(optarg, "r");
+			if (!replacement_rom) {
+				perror("couldn't open replacement rom file");
+				return 10;
+			}
 			break;
 
 		case 'k': {
@@ -478,32 +501,42 @@ offset, file_src[offset], spi_src[offset]);
 	}
 
 	case OP_FPGA_BOOT: {
+		int count;
 		spiHold(spi);
 		spiSwapTxRx(spi);
 		fpgaResetSlave(fpga);
 
 		fprintf(stderr, "FPGA Done? %d\n", fpgaDone(fpga));
 
-		int fd = open(op_filename, O_RDONLY);
-		if (fd == -1) {
-			perror("unable to open fpga bitstream");
-			break;
-		}
-
 		spiBegin(spi);
 
-		uint8_t bfr[32768];
-		int count;
-		while ((count = read(fd, bfr, sizeof(bfr))) > 0) {
-			int i;
-			for (i = 0; i < count; i++)
-				spiTx(spi, bfr[i]);
+		if (replacement_rom) {
+			IRW_FILE *bitstream = irw_open(op_filename, "r");
+			if (!bitstream) {
+				perror("unable to open fpga bitstream");
+				break;
+			}
+			IRW_FILE *spidev = irw_open_fake(spi, spi_irw_readb, spi_irw_writeb);
+			ice40_patch(bitstream, replacement_rom, spidev, 8192);
 		}
-		if (count < 0) {
-			perror("unable to read from fpga bitstream file");
-			break;
+		else {
+			uint8_t bfr[32768];
+			int fd = open(op_filename, O_RDONLY);
+			if (fd == -1) {
+				perror("unable to open fpga bitstream");
+				break;
+			}
+			while ((count = read(fd, bfr, sizeof(bfr))) > 0) {
+				int i;
+				for (i = 0; i < count; i++)
+					spiTx(spi, bfr[i]);
+			}
+			if (count < 0) {
+				perror("unable to read from fpga bitstream file");
+				break;
+			}
+			close(fd);
 		}
-		close(fd);
 		for (count = 0; count < 500; count++)
 			spiTx(spi, 0xff);
 		fprintf(stderr, "FPGA Done? %d\n", fpgaDone(fpga));
