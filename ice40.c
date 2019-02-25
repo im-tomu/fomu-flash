@@ -5,6 +5,10 @@
 #define MAX(x, y) (x) > (y) ? (x) : (y)
 #define DEBUG_PRINT(...)
 
+// The number of words forward and backward to look for matches.
+// Should be at least 16.
+#define DIFF_FUZZ 32
+
 struct Ice40Bitstream
 {
     uint32_t offset;
@@ -295,12 +299,12 @@ int ice40_patch(struct irw_file *f, struct irw_file *rom,
 
                     if (word) {
                         int found = 0;
-                        int start = ora_ptr - 64;
-                        int end = ora_ptr + 64;
+                        int start = ora_ptr - DIFF_FUZZ;
+                        int end = ora_ptr + DIFF_FUZZ;
                         if (start < 0)
                             start = 0;
-                        if (end > 8192)
-                            end = 8192;
+                        if (end > (byte_count - 1))
+                            end = (byte_count - 1);
                         for (i = start; i < end; i++) {
                             if (ora16[i] == word) {
                                 found = 1;
