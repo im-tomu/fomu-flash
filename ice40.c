@@ -3,7 +3,39 @@
 #include "ice40.h"
 
 #define MAX(x, y) (x) > (y) ? (x) : (y)
-#define DEBUG_PRINT(...)
+#define ARRAY_SIZE(x) ((sizeof(x) / sizeof(*x)))
+
+#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+
+// Make this a macro so line numbers work correctly
+#define assert_words_equal(check_word, old_word) \
+    if (check_word != old_word) { \
+        int j; \
+        printf("mismatch in source stream!\n"); \
+        printf("old_word: %04x  check_word: %04x\n", old_word, check_word); \
+        printf("rand:"); \
+        for (j = (offset + mapping) - 16; j < (offset + mapping) + 16; j++) { \
+            if (j == (offset + mapping)) \
+                printf(" [%04x]", ora16[j]); \
+            else \
+                printf(" %04x", ora16[j]); \
+        }\
+        printf("\n"); \
+\
+        printf(" rom:");\
+        for (j = i - 16; j < i + 16; j++) {\
+            printf(" %04x", oro16[j]);\
+        }\
+        printf("\n");\
+        printf("if possible, please email the rom and bitstream to sean@xobs.io\n"); \
+    } \
+    assert(check_word == old_word)
+
+#ifdef SCAN_DEBUG
+#define SCAN_DEBUG_PRINT(...) printf(__VA_ARGS__)
+#else
+#define SCAN_DEBUG_PRINT(...)
+#endif
 
 // The number of words forward and backward to look for matches.
 // Should be at least 16.
@@ -170,7 +202,6 @@ int ice40_patch(struct irw_file *f, struct irw_file *rom,
     uint16_t *ora16 = (uint16_t *)output_rand;
     uint16_t *oro16 = (uint16_t *)output_rom;
     unsigned int ora_ptr = 0;
-    unsigned int ora_matches = 0;
     unsigned int input_ptr;
     int b;
     int errors = 0;
@@ -288,44 +319,142 @@ int ice40_patch(struct irw_file *f, struct irw_file *rom,
                        (bs.current_width * bs.current_height) / 8);
                 bs.bram_width = MAX(bs.bram_width, bs.current_width);
                 bs.bram_height = MAX(bs.bram_height, bs.current_height);
-                for (i = 0; i < ((bs.current_width * bs.current_height) / 8); i += 2)
-                {
-                    uint16_t word = 
-                        ((irw_readb(f) << 8) & 0x0000ff00)
-                        |
-                        ((irw_readb(f) << 0) & 0x000000ff)
-                        ;
-                    int i;
 
-                    if (word) {
-                        int found = 0;
-                        int start = ora_ptr - DIFF_FUZZ;
-                        int end = ora_ptr + DIFF_FUZZ;
-                        if (start < 0)
-                            start = 0;
-                        if (end > (byte_count - 1))
-                            end = (byte_count - 1);
-                        for (i = start; i < end; i++) {
-                            if (ora16[i] == word) {
-                                found = 1;
-                                word = oro16[i];
-                                ora_matches++;
-                                ora_ptr = i;
-                                break;
+                // Step 1: Find a mapping by scanning through the first 128 words looking for patterns.
+                uint16_t scan_buffer[128];
+                assert(((bs.current_width * bs.current_height)/8)*2 > 128);
+                for (i = 0; i < ARRAY_SIZE(scan_buffer); i++) {
+                    scan_buffer[i] = ((irw_readb(f) << 8) & 0xff00) | ((irw_readb(f) << 0) & 0x00ff);
+                }
+
+#ifdef SCAN_DEBUG
+                SCAN_DEBUG_PRINT("scan:");
+                for (i = 0; i < ARRAY_SIZE(scan_buffer); i++) {
+                    SCAN_DEBUG_PRINT(" %04x", scan_buffer[i]);
+                }
+                SCAN_DEBUG_PRINT("\n");
+
+                SCAN_DEBUG_PRINT("rand:");
+                for (i = 0; i < ARRAY_SIZE(scan_buffer); i++) {
+                    SCAN_DEBUG_PRINT(" %04x", ora16[ora_ptr + i]);
+                }
+                SCAN_DEBUG_PRINT("\n");
+
+                SCAN_DEBUG_PRINT(" rom:");
+                for (i = 0; i < ARRAY_SIZE(scan_buffer); i++) {
+                    SCAN_DEBUG_PRINT(" %04x", oro16[ora_ptr + i]);
+                }
+                SCAN_DEBUG_PRINT("\n");
+#endif /* SCAN_DEBUG */
+
+                int outer_word = 0;
+                static struct {
+                    int bitstream;
+                    int random;
+                    int stride;
+                } word_mappings[16];
+                int word_stride = -1;
+                for (outer_word = 0; outer_word < 16; outer_word++) {
+                    int inner_word;
+                    word_mappings[outer_word].bitstream = -1;
+                    word_mappings[outer_word].random = -1;
+                    word_mappings[outer_word].stride = -1;
+                    for (inner_word = 0; inner_word < 16; inner_word++) {
+                        // We have a candidate offset.  Figure out what its stride is,
+                        // and validate that we have multiple matches.
+                        if (scan_buffer[outer_word] == ora16[ora_ptr + inner_word]) {
+                            SCAN_DEBUG_PRINT("Candidate %04x @ %d/%d\n", scan_buffer[outer_word], outer_word, inner_word);
+                            int scan_offset = 0;
+                            for (scan_offset = 0; scan_offset < 30; scan_offset++) {
+                                if ((scan_buffer[outer_word + scan_offset] == ora16[ora_ptr + inner_word + 16])
+                                &&  (scan_buffer[outer_word + (scan_offset*2)] == ora16[ora_ptr + inner_word + 32])) {
+                                    SCAN_DEBUG_PRINT("Scan offset: %d\n", scan_offset);
+                                    word_mappings[outer_word].bitstream = outer_word;
+                                    word_mappings[outer_word].random = inner_word;
+                                    word_mappings[outer_word].stride = scan_offset;
+                                }
                             }
                         }
-                        if (!found) {
-                            printf("couldn't find word %04x (ora_ptr: %d  matches: %d)\n", word, ora_ptr, ora_matches);
-                            errors++;
+                    }
+                }
+                for (i = 0; i < ARRAY_SIZE(word_mappings); i++) {
+                    if (word_mappings[i].stride != -1) {
+                        if (word_stride != -1) {
+                            if (word_mappings[i].stride != word_stride) {
+                                printf("This stride is different (%d vs expected %d)\n", word_mappings[i].stride, word_stride);
+                            }
                         }
+                        word_stride = word_mappings[i].stride;
+                    }
+                }
+
+#ifdef SCAN_DEBUG
+                for (outer_word = 0; outer_word < ARRAY_SIZE(word_mappings); outer_word++) {
+                    SCAN_DEBUG_PRINT("word_mappings[%2d]:  bitstream: %2d  random: %2d  stride: %2d\n",
+                    outer_word, word_mappings[outer_word].bitstream,
+                    word_mappings[outer_word].random, word_mappings[outer_word].stride);
+                }
+#endif /* SCAN_DEBUG */
+
+                for (i = 0; i < ARRAY_SIZE(scan_buffer); i++) {
+                    int offset = -1;
+                    int mapping = -1;
+                    if (word_stride != -1) {
+                        offset = (i / word_stride) * 16;
+                        mapping = word_mappings[i % word_stride].random;
+                    }
+                    uint16_t old_word = scan_buffer[i];
+                    uint16_t check_word;
+                    uint16_t new_word;
+                    if (mapping == -1) {
+                        new_word = check_word = old_word;
                     }
                     else {
-                        ora_ptr++;
-                        // DEBUG_PRINT("word is 0, ptr is %d\n", ora_ptr);
+                        check_word = ora16[ora_ptr + offset + mapping];
+                        new_word = oro16[ora_ptr + offset + mapping];
                     }
-                    irw_writeb(o, word >> 8);
-                    irw_writeb(o, word);
+                    irw_writeb(o, new_word >> 8);
+                    irw_writeb(o, new_word);
+                    SCAN_DEBUG_PRINT("%4d %4d %2d %2d %04x <-> %04x -> %04x\n", i, sizeof(scan_buffer), offset, mapping, old_word, check_word, new_word);
+                    assert_words_equal(check_word, old_word);
                 }
+                SCAN_DEBUG_PRINT("---\n");
+
+                // Finish reading the page
+                for (i = ARRAY_SIZE(scan_buffer); i < ((bs.current_width * bs.current_height) / 8)/2; i++) {
+                    int offset = -1;
+                    int mapping = -1;
+                    if (word_stride != -1) {
+                        offset = (i / word_stride) * 16;
+                        mapping = word_mappings[i % word_stride].random;
+                    }
+                    uint16_t old_word = 
+                        ((irw_readb(f) << 8) & 0xff00)
+                        |
+                        ((irw_readb(f) << 0) & 0x00ff)
+                        ;
+                    uint16_t check_word;
+                    uint16_t new_word;
+                    if (mapping == -1) {
+                        new_word = check_word = old_word;
+                    }
+                    else {
+                        check_word = ora16[ora_ptr + offset + mapping];
+                        new_word = oro16[ora_ptr + offset + mapping];
+                    }
+                    irw_writeb(o, new_word >> 8);
+                    irw_writeb(o, new_word);
+                    SCAN_DEBUG_PRINT("%4d %4d %2d %2d %04x <-> %04x -> %04x\n", i, sizeof(scan_buffer), offset, mapping, old_word, check_word, new_word);
+                    assert_words_equal(check_word, old_word);
+                }
+
+                // Stash ora_ptr for the next bank iteration
+                if (word_stride != -1) {
+                    int offset = (i / word_stride) * 16;
+                    int mapping = word_mappings[i % word_stride].random;
+                    ora_ptr = offset + mapping;
+                }
+
                 last0 = irw_readb(f);
                 last1 = irw_readb(f);
                 if (last0 || last1)
@@ -357,7 +486,6 @@ int ice40_patch(struct irw_file *f, struct irw_file *rom,
         case 1:
             bs.current_bank = payload;
             ora_ptr = 0;
-            ora_matches = 0;
             // printf("setting bank number to %d\n", bs.current_bank);
             break;
 
