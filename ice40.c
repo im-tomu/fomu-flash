@@ -5,7 +5,9 @@
 #define MAX(x, y) (x) > (y) ? (x) : (y)
 #define ARRAY_SIZE(x) ((sizeof(x) / sizeof(*x)))
 
-#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+#define DEBUG_PRINT(...)
+// #define DEBUG_PRINT(...) printf(__VA_ARGS__)
+// #define SCAN_DEBUG
 
 // Make this a macro so line numbers work correctly
 #define assert_words_equal(check_word, old_word) \
@@ -36,10 +38,6 @@
 #else
 #define SCAN_DEBUG_PRINT(...)
 #endif
-
-// The number of words forward and backward to look for matches.
-// Should be at least 16.
-#define DIFF_FUZZ 32
 
 struct Ice40Bitstream
 {
@@ -319,6 +317,7 @@ int ice40_patch(struct irw_file *f, struct irw_file *rom,
                        (bs.current_width * bs.current_height) / 8);
                 bs.bram_width = MAX(bs.bram_width, bs.current_width);
                 bs.bram_height = MAX(bs.bram_height, bs.current_height);
+                ora_ptr = 16 * bs.current_offset;
 
                 // Step 1: Find a mapping by scanning through the first 128 words looking for patterns.
                 uint16_t scan_buffer[128];
@@ -446,13 +445,6 @@ int ice40_patch(struct irw_file *f, struct irw_file *rom,
                     irw_writeb(o, new_word);
                     SCAN_DEBUG_PRINT("%4d %4d %2d %2d %04x <-> %04x -> %04x\n", i, sizeof(scan_buffer), offset, mapping, old_word, check_word, new_word);
                     assert_words_equal(check_word, old_word);
-                }
-
-                // Stash ora_ptr for the next bank iteration
-                if (word_stride != -1) {
-                    int offset = (i / word_stride) * 16;
-                    int mapping = word_mappings[i % word_stride].random;
-                    ora_ptr = offset + mapping;
                 }
 
                 last0 = irw_readb(f);
