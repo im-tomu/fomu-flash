@@ -25,7 +25,7 @@
 static unsigned int F_RESET = 27;
 #define F_DONE 17
 
-#define DEBUG_ICE40_PATCH
+// #define DEBUG_ICE40_PATCH
 
 static int spi_irw_readb(void *data) {
     return spiRx(data);
