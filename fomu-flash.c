@@ -187,6 +187,7 @@ int main(int argc, char **argv) {
     enum spi_type spi_type = ST_SINGLE;
     struct irw_file *replacement_rom = NULL;
 
+#ifndef DEBUG_ICE40_PATCH
     if (gpioInitialise() < 0) {
         fprintf(stderr, "Unable to initialize GPIO\n");
         return 1;
@@ -197,8 +198,9 @@ int main(int argc, char **argv) {
     // original had it as BCM 21.
     if ((gpioHardwareRevision() == 2) || (gpioHardwareRevision() == 3))
         F_RESET = 21;
+#endif
 
-     spi = spiAlloc();
+    spi = spiAlloc();
     fpga = fpgaAlloc();
 
     spiSetPin(spi, SP_CLK, S_CLK);
@@ -363,6 +365,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+#ifndef DEBUG_ICE40_PATCH
     spiInit(spi);
     fpgaInit(fpga);
 
@@ -371,6 +374,16 @@ int main(int argc, char **argv) {
 
     if (spi_flash_bytes != -1)
         spiOverrideSize(spi, spi_flash_bytes);
+#else
+    if (op != OP_FPGA_BOOT) {
+        printf("DEBUG_ICE40_PATCH requires you load a bitstream with '-f'\n");
+        return 9;
+    }
+    if (!replacement_rom) {
+        printf("DEBUG_ICE40_PATCH requires you load a replacement rom with '-l'\n");
+        return 10;
+    }
+#endif
 
     switch (op) {
     case OP_SPI_ID: {
@@ -504,14 +517,13 @@ offset, file_src[offset], spi_src[offset]);
 
     case OP_FPGA_BOOT: {
         int count;
+#ifndef DEBUG_ICE40_PATCH
         spiHold(spi);
         spiSwapTxRx(spi);
         fpgaResetSlave(fpga);
-
         fprintf(stderr, "FPGA Done? %d\n", fpgaDone(fpga));
-
         spiBegin(spi);
-
+#endif
         if (replacement_rom) {
             IRW_FILE *bitstream = irw_open(op_filename, "r");
             if (!bitstream) {
@@ -519,7 +531,8 @@ offset, file_src[offset], spi_src[offset]);
                 break;
             }
 #ifdef DEBUG_ICE40_PATCH
-            IRW_FILE *spidev = irw_open("foboot-patched-broken.bin", "w");
+            IRW_FILE *spidev = irw_open("foboot-patched.bin", "w");
+            return ice40_patch(bitstream, replacement_rom, spidev, 8192);
 #else
             IRW_FILE *spidev = irw_open_fake(spi, spi_irw_readb, spi_irw_writeb);
 #endif
