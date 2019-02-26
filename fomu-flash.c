@@ -25,6 +25,8 @@
 static unsigned int F_RESET = 27;
 #define F_DONE 17
 
+#define DEBUG_ICE40_PATCH
+
 static int spi_irw_readb(void *data) {
 	return spiRx(data);
 }
@@ -516,7 +518,11 @@ offset, file_src[offset], spi_src[offset]);
 				perror("unable to open fpga bitstream");
 				break;
 			}
+#ifdef DEBUG_ICE40_PATCH
+			IRW_FILE *spidev = irw_open("foboot-patched-broken.bin", "w");
+#else
 			IRW_FILE *spidev = irw_open_fake(spi, spi_irw_readb, spi_irw_writeb);
+#endif
 			ice40_patch(bitstream, replacement_rom, spidev, 8192);
 		}
 		else {
