@@ -49,11 +49,11 @@ static uint32_t get_bit_offset(int x, int total_bits) {
 
 uint32_t xorshift32(uint32_t x)
 {
-	/* Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs" */
-	x = x ^ (x << 13);
-	x = x ^ (x >> 17);
-	x = x ^ (x << 5);
-	return x;
+    /* Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs" */
+    x = x ^ (x << 13);
+    x = x ^ (x >> 17);
+    x = x ^ (x << 5);
+    return x;
 }
 
 uint32_t get_rand(uint32_t x) {
