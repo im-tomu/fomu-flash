@@ -213,8 +213,12 @@ int ice40_patch(struct irw_file *f, struct irw_file *rom,
     // Read the ROM into a source buffer
     memset(input_rom, 0, sizeof(input_rom));
     input_ptr = 0;
-    while ((b = irw_readb(rom)) != EOF)
+    while (((b = irw_readb(rom)) != EOF) && input_ptr <= byte_count)
         i8[input_ptr++] = b;
+    if (input_ptr > byte_count) {
+        fprintf(stderr, "input file is larger than %d bytes\n", byte_count);
+        return -1;
+    }
     DEBUG_PRINT("read %d bytes from rom\n", input_ptr);
 
     // Generate our reference pattern
