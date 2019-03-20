@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 #include "ice40.h"
 
 #define MAX(x, y) (x) > (y) ? (x) : (y)
@@ -25,7 +26,7 @@
         printf("\n"); \
 \
         printf(" rom:");\
-        for (j = i - 16; j < i + 16; j++) {\
+        for (j = i - 16; j < (int)i + 16; j++) {\
             printf(" %04x", oro16[j]);\
         }\
         printf("\n");\
