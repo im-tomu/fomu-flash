@@ -27,6 +27,7 @@ static unsigned int F_RESET = 27;
 
 // #define DEBUG_ICE40_PATCH
 
+#ifndef DEBUG_ICE40_PATCH
 static int spi_irw_readb(void *data) {
     return spiRx(data);
 }
@@ -35,6 +36,7 @@ static int spi_irw_writeb(void *data, uint8_t b) {
     spiTx(data, b);
     return b;
 }
+#endif
 
 static inline int isprint(int c)
 {
@@ -153,8 +155,10 @@ static int print_help(FILE *stream, const char *progname) {
     fprintf(stream, "\n");
     fprintf(stream, "Configuration options:\n");
     fprintf(stream, "    -g ps     Set the pin assignment with the given pinspec\n");
+#ifndef DEBUG_ICE40_PATCH
     fprintf(stream, "    -t type   Set the number of bits to use for SPI (1, 2, 4, or Q)\n");
     fprintf(stream, "    -b bytes  Override the size of the SPI flash, in bytes\n");
+#endif
     fprintf(stream, "You can remap various pins with -g.  The format is [name]:[number].\n");
     fprintf(stream, "\n");
     fprintf(stream, "The width of SPI can be set with 't [width]'.  Valid widths are:\n");
@@ -180,11 +184,13 @@ int main(int argc, char **argv) {
     struct ff_spi *spi;
     struct ff_fpga *fpga;
     int peek_offset = 0;
+#ifndef DEBUG_ICE40_PATCH
     int spi_flash_bytes = -1;
+    enum spi_type spi_type = ST_SINGLE;
+#endif
     uint8_t security_reg;
     uint8_t security_val[256];
     enum op op = OP_UNKNOWN;
-    enum spi_type spi_type = ST_SINGLE;
     struct irw_file *replacement_rom = NULL;
 
 #ifndef DEBUG_ICE40_PATCH
@@ -227,9 +233,31 @@ int main(int argc, char **argv) {
             op = OP_FPGA_RESET;
             break;
 
+#ifndef DEBUG_ICE40_PATCH
         case 'b':
             spi_flash_bytes = strtoul(optarg, NULL, 0);
             break;
+
+        case 't':
+            switch (*optarg) {
+            case '1':
+                spi_type = ST_SINGLE;
+                break;
+            case '2':
+                spi_type = ST_DUAL;
+                break;
+            case '4':
+                spi_type = ST_QUAD;
+                break;
+            case 'q':
+                spi_type = ST_QPI;
+                break;
+            default:
+                fprintf(stderr, "Unrecognized SPI speed '%c'.  Valid types are: 1, 2, 4, or q\n", *optarg);
+                return 1;
+            }
+            break;
+#endif
 
         case 'l':
             replacement_rom = irw_open(optarg, "r");
@@ -278,26 +306,6 @@ int main(int argc, char **argv) {
                 return print_usage_error(stdout);
             op = OP_SPI_PEEK;
             peek_offset = strtoul(optarg, NULL, 0);
-            break;
-
-        case 't':
-            switch (*optarg) {
-            case '1':
-                spi_type = ST_SINGLE;
-                break;
-            case '2':
-                spi_type = ST_DUAL;
-                break;
-            case '4':
-                spi_type = ST_QUAD;
-                break;
-            case 'q':
-                spi_type = ST_QPI;
-                break;
-            default:
-                fprintf(stderr, "Unrecognized SPI speed '%c'.  Valid types are: 1, 2, 4, or q\n", *optarg);
-                return 1;
-            }
             break;
 
         case 'g':
