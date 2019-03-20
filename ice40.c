@@ -117,9 +117,12 @@ uint32_t swap_u32(uint32_t word) {
 
 struct irw_file *irw_open(const char *filename, const char *mode)
 {
+    FILE *tmpfile = fopen(filename, mode);
+    if (!tmpfile)
+        return NULL;
     struct irw_file *f = malloc(sizeof(*f));
     memset(f, 0, sizeof(*f));
-    f->f = fopen(filename, mode);
+    f->f = tmpfile;
     return f;
 }
 
