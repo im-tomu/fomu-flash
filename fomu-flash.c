@@ -137,6 +137,7 @@ static int print_program_modes(FILE *stream) {
     fprintf(stream, "    -f bin    Load this bitstream directly into the FPGA\n");
     fprintf(stream, "    -l rom    Replace the ROM in the bitstream with this file\n");
     fprintf(stream, "    -w bin    Write this binary into the SPI flash chip\n");
+    fprintf(stream, "    -a addr   Change the address to write/read from\n");
     fprintf(stream, "    -v bin    Verify the SPI flash contains this data\n");
     fprintf(stream, "    -s out    Save the SPI flash contents to this file\n");
     fprintf(stream, "    -k n[:f]  Read security register [n], or update it with the contents of file [f]\n");
@@ -148,7 +149,7 @@ static int print_help(FILE *stream, const char *progname) {
     fprintf(stream, "Usage:\n");
     fprintf(stream, "%15s  (-[hri] | [-p offset] | [-f bitstream] | \n", progname);
     fprintf(stream, "%15s            [-w bin] | [-v bin] | [-s out] | [-k n[:f]])\n", "");
-    fprintf(stream, "                [-g pinspec] [-t spitype] [-b bytes]\n");
+    fprintf(stream, "                [-g pinspec] [-t spitype] [-b bytes] [-a addr]\n");
     fprintf(stream, "\n");
     fprintf(stream, "Program mode (pick one):\n");
     print_program_modes(stream);
@@ -184,6 +185,7 @@ int main(int argc, char **argv) {
     struct ff_spi *spi;
     struct ff_fpga *fpga;
     int peek_offset = 0;
+    uint32_t addr = 0;
 #ifndef DEBUG_ICE40_PATCH
     int spi_flash_bytes = -1;
     enum spi_type spi_type = ST_SINGLE;
@@ -224,8 +226,12 @@ int main(int argc, char **argv) {
     fpgaSetPin(fpga, FP_DONE, F_DONE);
     fpgaSetPin(fpga, FP_CS, S_CE0);
 
-    while ((opt = getopt(argc, argv, "hip:rf:b:w:s:2:3:v:g:t:k:l:")) != -1) {
+    while ((opt = getopt(argc, argv, "hip:rf:a:b:w:s:2:3:v:g:t:k:l:")) != -1) {
         switch (opt) {
+
+        case 'a':
+            addr = strtoul(optarg, NULL, 0);
+            break;
 
         case 'r':
             if (op != OP_UNKNOWN)
@@ -443,7 +449,7 @@ int main(int argc, char **argv) {
             perror("unable to allocate memory for spi");
             return 1;
         }
-        spiRead(spi, 0, bfr, id.bytes);
+        spiRead(spi, addr, bfr, id.bytes);
         if (write(fd, bfr, id.bytes) != id.bytes) {
             perror("unable to write SPI flash image to disk");
             break;
@@ -476,7 +482,7 @@ int main(int argc, char **argv) {
             break;
         }
         close(fd);
-        spiWrite(spi, 0, bfr, stat.st_size);
+        spiWrite(spi, addr, bfr, stat.st_size);
         break;
     }
 
@@ -505,13 +511,12 @@ int main(int argc, char **argv) {
         }
         close(fd);
 
-        spiRead(spi, 0, spi_src, stat.st_size);
+        spiRead(spi, addr, spi_src, stat.st_size);
 
         int offset;
-        for (offset = 0; offset < stat.st_size; offset++) {
+        for (offset = addr; offset < stat.st_size; offset++) {
             if (file_src[offset] != spi_src[offset])
-                printf("%9d: file: %02x   spi: %02x\n",
-offset, file_src[offset], spi_src[offset]);
+                printf("%9d: file: %02x   spi: %02x\n", offset, file_src[offset], spi_src[offset]);
         }
         break;
     }
