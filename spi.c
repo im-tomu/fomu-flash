@@ -659,6 +659,51 @@ static int spi_wait_for_not_busy(struct ff_spi *spi) {
 	return 0;
 }
 
+int spiIsBusy(struct ff_spi *spi) {
+  return spiReadStatus(spi, 1) & (1 << 0);
+}
+
+int spiBeginErase(struct ff_spi *spi, uint32_t erase_addr) {
+	// Enable Write-Enable Latch (WEL)
+	spiBegin(spi);
+	spiCommand(spi, 0x06);
+	spiEnd(spi);
+
+	spiBegin(spi);
+	spiCommand(spi, 0x52);
+	spiCommand(spi, erase_addr >> 16);
+	spiCommand(spi, erase_addr >> 8);
+	spiCommand(spi, erase_addr >> 0);
+	spiEnd(spi);
+	return 0;
+}
+
+int spiBeginWrite(struct ff_spi *spi, uint32_t addr, const void *v_data, unsigned int count) {
+	uint8_t write_cmd = 0x02;
+	const uint8_t *data = v_data;
+	unsigned int i;
+
+	// Enable Write-Enable Latch (WEL)
+	spiBegin(spi);
+	spiCommand(spi, 0x06);
+	spiEnd(spi);
+
+	// uint8_t sr1 = spiReadStatus(spi, 1);
+	// if (!(sr1 & (1 << 1)))
+	// 	fprintf(stderr, "error: write-enable latch (WEL) not set, write will probably fail\n");
+
+	spiBegin(spi);
+	spiCommand(spi, write_cmd);
+	spiCommand(spi, addr >> 16);
+	spiCommand(spi, addr >> 8);
+	spiCommand(spi, addr >> 0);
+	for (i = 0; (i < count) && (i < 256); i++)
+		spiTx(spi, *data++);
+	spiEnd(spi);
+
+	return 0;
+}
+
 void spiSwapTxRx(struct ff_spi *spi) {
 	int tmp = spi->pins.mosi;
 	spi->pins.mosi = spi->pins.miso;
@@ -679,7 +724,7 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 
 	// Erase all applicable blocks
 	uint32_t erase_addr;
-	for (erase_addr = 0; erase_addr < count; erase_addr += 32768) {
+	for (erase_addr = addr; erase_addr < count; erase_addr += 32768) {
 		printf("\rErasing @ %06x / %06x", erase_addr, count);
 		fflush(stdout);
 
@@ -745,8 +790,6 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 }
 
 uint8_t spiReset(struct ff_spi *spi) {
-	// XXX You should check the "Ready" bit before doing this!
-
 	// Shift to QPI mode, then back to Single mode, to ensure
 	// we're actually in Single mode.
 	spiSetType(spi, ST_QPI);
@@ -766,12 +809,25 @@ uint8_t spiReset(struct ff_spi *spi) {
 	spiCommand(spi, 0xab); // "Resume from Deep Power-Down" command
 	spiEnd(spi);
 
+	// XXX You should check the "Ready" bit before doing this!
+	spi_wait_for_not_busy(spi);
+
 	return 0;
+}
+
+static void spi_wait_cs_idle(struct ff_spi *spi) {
+	gpioSetMode(spi->pins.cs, PI_INPUT); // CE0#
+	while (!gpioRead(spi->pins.cs))
+		;
+	gpioSetMode(spi->pins.cs, PI_OUTPUT); // CE0#
 }
 
 int spiInit(struct ff_spi *spi) {
 	spi->state = SS_UNCONFIGURED;
 	spi->type = ST_UNCONFIGURED;
+
+	// Wait for CS to be 1, since the bus is shared
+	spi_wait_cs_idle(spi);
 
 	// Reset the SPI flash, which will return it to SPI mode even
 	// if it's in QPI mode.
@@ -784,6 +840,7 @@ int spiInit(struct ff_spi *spi) {
 
 	// Disable WP
 	gpioWrite(spi->pins.wp, 1);
+	spiReset(spi);
 
 	spi_get_id(spi);
 
