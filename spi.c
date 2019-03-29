@@ -479,6 +479,16 @@ static void spi_decode_id(struct ff_spi *spi) {
 	spi->id.capacity = "unknown";
 	spi->id.bytes = -1; // unknown
 
+	if (spi->id.manufacturer_id == 0xc2) {
+		spi->id.manufacturer = "Macronix";
+		if ((spi->id.memory_type == 0x28)
+		 && (spi->id.memory_size == 0x15)) {
+			spi->id.model = "MX25R1635F";
+			spi->id.capacity = "16 Mbit";
+			spi->id.bytes = 2 * 1024 * 1024;
+		}
+	}
+
 	if (spi->id.manufacturer_id == 0xef) {
 		spi->id.manufacturer = "Winbond";
 		if ((spi->id.memory_type == 0x70)
@@ -852,9 +862,10 @@ int spiInit(struct ff_spi *spi) {
 	spi_get_id(spi);
 
 	spi->quirks |= SQ_SR2_FROM_SR1;
-//	if (spi->id.manufacturer_id == 0x1f)
 	if (spi->id.manufacturer_id == 0xef)
 		spi->quirks |= SQ_SKIP_SR_WEL | SQ_SECURITY_NYBBLE_SHIFT;
+	else if (spi->id.manufacturer_id == 0xc2)
+		spi->quirks |= SQ_SKIP_SR_WEL | SQ_QE_IN_SR1;
 
 	return 0;
 }
