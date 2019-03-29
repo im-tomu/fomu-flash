@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 #include "ice40.h"
 
 #define MAX(x, y) (x) > (y) ? (x) : (y)
@@ -25,7 +26,7 @@
         printf("\n"); \
 \
         printf(" rom:");\
-        for (j = i - 16; j < i + 16; j++) {\
+        for (j = i - 16; j < (int)i + 16; j++) {\
             printf(" %04x", oro16[j]);\
         }\
         printf("\n");\
@@ -116,9 +117,12 @@ uint32_t swap_u32(uint32_t word) {
 
 struct irw_file *irw_open(const char *filename, const char *mode)
 {
+    FILE *tmpfile = fopen(filename, mode);
+    if (!tmpfile)
+        return NULL;
     struct irw_file *f = malloc(sizeof(*f));
     memset(f, 0, sizeof(*f));
-    f->f = fopen(filename, mode);
+    f->f = tmpfile;
     return f;
 }
 
@@ -209,8 +213,12 @@ int ice40_patch(struct irw_file *f, struct irw_file *rom,
     // Read the ROM into a source buffer
     memset(input_rom, 0, sizeof(input_rom));
     input_ptr = 0;
-    while ((b = irw_readb(rom)) != EOF)
+    while (((b = irw_readb(rom)) != EOF) && input_ptr <= byte_count)
         i8[input_ptr++] = b;
+    if (input_ptr > byte_count) {
+        fprintf(stderr, "input file is larger than %d bytes\n", byte_count);
+        return -1;
+    }
     DEBUG_PRINT("read %d bytes from rom\n", input_ptr);
 
     // Generate our reference pattern

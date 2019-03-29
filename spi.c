@@ -98,12 +98,12 @@ static void spi_set_state(struct ff_spi *spi, enum spi_state state) {
 		break;
 
 	case SS_HARDWARE:
-		gpioSetMode(spi->pins.clk, PI_ALT0); // CLK
-		gpioSetMode(spi->pins.cs, PI_ALT0); // CE0#
-		gpioSetMode(spi->pins.mosi, PI_ALT0); // MOSI
-		gpioSetMode(spi->pins.miso, PI_ALT0); // MISO
-		gpioSetMode(spi->pins.hold, PI_OUTPUT);
-		gpioSetMode(spi->pins.wp, PI_OUTPUT);
+		gpioSetMode(spi->pins.clk, PI_INPUT); // CLK
+		gpioSetMode(spi->pins.cs, PI_INPUT); // CE0#
+		gpioSetMode(spi->pins.mosi, PI_INPUT); // MOSI
+		gpioSetMode(spi->pins.miso, PI_INPUT); // MISO
+		gpioSetMode(spi->pins.hold, PI_INPUT);
+		gpioSetMode(spi->pins.wp, PI_INPUT);
 		break;
 
 	default:
