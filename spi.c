@@ -21,6 +21,9 @@ enum ff_spi_quirks {
 
 	// Security registers are shifted up by 4 bits
 	SQ_SECURITY_NYBBLE_SHIFT = (1 << 2),
+
+	// The "QE" bit is in SR1, not SR2
+	SQ_QE_IN_SR1 = (1 << 4),
 };
 
 struct ff_spi {
@@ -557,6 +560,10 @@ int spiSetType(struct ff_spi *spi, enum spi_type type) {
 	if (spi->type == type)
 		return 0;
 
+	uint8_t sr_addr = 2;
+	if (spi->quirks & SQ_QE_IN_SR1)
+		sr_addr = 1;
+
 	switch (type) {
 
 	case ST_SINGLE:
@@ -587,7 +594,7 @@ int spiSetType(struct ff_spi *spi, enum spi_type type) {
 		}
 
 		// Enable QE bit
-		spiWriteStatus(spi, 2, spiReadStatus(spi, 2) | (1 << 1));
+		spiWriteStatus(spi, sr_addr, spiReadStatus(spi, sr_addr) | (1 << 1));
 
 		spi->type = type;
 		spi_set_state(spi, SS_QUAD_TX);
@@ -595,7 +602,7 @@ int spiSetType(struct ff_spi *spi, enum spi_type type) {
 
 	case ST_QPI:
 		// Enable QE bit
-		spiWriteStatus(spi, 2, spiReadStatus(spi, 2) | (1 << 1));
+		spiWriteStatus(spi, sr_addr, spiReadStatus(spi, sr_addr) | (1 << 1));
 
 		spiBegin(spi);
 		spiCommand(spi, 0x38);		// Enter QPI Mode
