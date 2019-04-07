@@ -514,9 +514,9 @@ int main(int argc, char **argv) {
         spiRead(spi, addr, spi_src, stat.st_size);
 
         int offset;
-        for (offset = addr; offset < stat.st_size; offset++) {
-            if (file_src[offset] != spi_src[offset])
-                printf("%9d: file: %02x   spi: %02x\n", offset, file_src[offset], spi_src[offset]);
+        for (offset = addr; offset < stat.st_size + addr; offset++) {
+            if (file_src[offset - addr] != spi_src[offset - addr])
+                printf("%9d: file: %02x   spi: %02x\n", offset, file_src[offset - addr], spi_src[offset - addr]);
         }
         break;
     }
