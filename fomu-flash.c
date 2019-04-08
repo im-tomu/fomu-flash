@@ -380,8 +380,8 @@ int main(int argc, char **argv) {
     }
 
 #ifndef DEBUG_ICE40_PATCH
-    spiInit(spi);
     fpgaInit(fpga);
+    spiInit(spi);
 
     spiSetType(spi, spi_type);
     fpgaReset(fpga);
