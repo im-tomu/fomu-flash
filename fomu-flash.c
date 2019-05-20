@@ -381,10 +381,10 @@ int main(int argc, char **argv) {
 
 #ifndef DEBUG_ICE40_PATCH
     fpgaInit(fpga);
+    fpgaReset(fpga);
     spiInit(spi);
 
     spiSetType(spi, spi_type);
-    fpgaReset(fpga);
 
     if (spi_flash_bytes != -1)
         spiOverrideSize(spi, spi_flash_bytes);
