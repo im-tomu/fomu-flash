@@ -324,32 +324,26 @@ uint8_t spiCommandRx(struct ff_spi *spi) {
 uint8_t spiReadStatus(struct ff_spi *spi, uint8_t sr) {
 	uint8_t val = 0xff;
 
+	spiBegin(spi);
 	switch (sr) {
 	case 1:
-		spiBegin(spi);
+	case 2:
 		spiCommand(spi, 0x05);
 		val = spiCommandRx(spi);
-		spiEnd(spi);
-		break;
-
-	case 2:
-		spiBegin(spi);
-		spiCommand(spi, 0x35);
-		val = spiCommandRx(spi);
-		spiEnd(spi);
+		if (sr == 2)
+			val = spiCommandRx(spi);
 		break;
 
 	case 3:
-		spiBegin(spi);
 		spiCommand(spi, 0x15);
 		val = spiCommandRx(spi);
-		spiEnd(spi);
 		break;
 
 	default:
 		fprintf(stderr, "unrecognized status register: %d\n", sr);
 		break;
 	}
+	spiEnd(spi);
 
 	return val;
 }
@@ -429,8 +423,7 @@ void spiWriteStatus(struct ff_spi *spi, uint8_t sr, uint8_t val) {
 
 	case 2: {
 		uint8_t sr1 = 0x00;
-		if (spi->quirks & SQ_SR2_FROM_SR1)
-			sr1 = spiReadStatus(spi, 1);
+		sr1 = spiReadStatus(spi, 1);
 
 		if (!(spi->quirks & SQ_SKIP_SR_WEL)) {
 			spiBegin(spi);
@@ -444,15 +437,10 @@ void spiWriteStatus(struct ff_spi *spi, uint8_t sr, uint8_t val) {
 		spiEnd(spi);
 
 		spiBegin(spi);
-		if (spi->quirks & SQ_SR2_FROM_SR1) {
-			spiCommand(spi, 0x01);
-			spiCommand(spi, sr1);
-			spiCommand(spi, val);
-		}
-		else {
-			spiCommand(spi, 0x31);
-			spiCommand(spi, val);
-		}
+		spiCommand(spi, 0x01);
+		spiCommand(spi, sr1);
+		spiCommand(spi, val);
+
 		spiEnd(spi);
 		break;
 	}
