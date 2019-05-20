@@ -673,6 +673,7 @@ static int spi_wait_for_not_busy(struct ff_spi *spi) {
 
 	do {
 		sr1 = spiReadStatus(spi, 1);
+		usleep(50);
 	} while (sr1 & (1 << 0));
 	return 0;
 }
