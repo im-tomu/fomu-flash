@@ -656,12 +656,12 @@ int spiRead(struct ff_spi *spi, uint32_t addr, uint8_t *data, unsigned int count
 	spiCommand(spi, 0x00);
 	for (i = 0; i < count; i++) {
 		if ((i & 0x3fff) == 0) {
-			printf("\rReading @ %06x / %06x", i, count);
-			fflush(stdout);
+//			printf("\rReading @ %06x / %06x", addr + i, addr + count);
+//			fflush(stdout);
 		}
 		data[i] = spiRx(spi);
 	}
-	printf("\rReading @ %06x / %06x Done\n", i, count);
+//	printf("\rReading @ %06x / %06x Done\n", addr + i, addr + count);
 
 	spiEnd(spi);
 	return 0;
