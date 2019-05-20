@@ -10,6 +10,19 @@
 #include "rpi.h"
 #include "spi.h"
 
+#ifdef ERASE_SIZE_32K
+#define ERASE_BLOCK_SIZE 32768
+#define ERASE_COMMAND 0x52
+#else
+#ifdef ERASE_SIZE_64K
+#define ERASE_BLOCK_SIZE 65536
+#define ERASE_COMMAND 0xd8
+#else
+#define ERASE_BLOCK_SIZE 4096
+#define ERASE_COMMAND 0x20
+#endif
+#endif
+
 enum ff_spi_quirks {
 	// There is no separate "Write SR 2" command.  Instead,
 	// you must write SR2 after writing SR1
@@ -687,7 +700,7 @@ int spiBeginErase(struct ff_spi *spi, uint32_t erase_addr) {
 	spiEnd(spi);
 
 	spiBegin(spi);
-	spiCommand(spi, 0x52);
+	spiCommand(spi, ERASE_COMMAND);
 	spiCommand(spi, erase_addr >> 16);
 	spiCommand(spi, erase_addr >> 8);
 	spiCommand(spi, erase_addr >> 0);
@@ -741,22 +754,27 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 
 	// Erase all applicable blocks
 	uint32_t erase_addr;
-	for (erase_addr = addr; erase_addr < count; erase_addr += 32768) {
-		printf("\rErasing @ %06x / %06x", erase_addr, count);
+	uint8_t check_bfr[256];
+	uint32_t check_byte;
+	for (erase_addr = addr; erase_addr < (addr + count); erase_addr += ERASE_BLOCK_SIZE) {
+		printf("\rErasing @ %06x / %06x", addr, erase_addr + count);
 		fflush(stdout);
 
-		spiBegin(spi);
-		spiCommand(spi, 0x06);
-		spiEnd(spi);
-
-		spiBegin(spi);
-		spiCommand(spi, 0x52);
-		spiCommand(spi, erase_addr >> 16);
-		spiCommand(spi, erase_addr >> 8);
-		spiCommand(spi, erase_addr >> 0);
-		spiEnd(spi);
-
+		spiBeginErase(spi, erase_addr);
 		spi_wait_for_not_busy(spi);
+
+		uint32_t check_addr;
+		for (check_addr = erase_addr;
+		     check_addr < (erase_addr + ERASE_BLOCK_SIZE);
+		     check_addr += 256) {
+			spiRead(spi, check_addr, check_bfr, sizeof(check_bfr));
+			for (check_byte = 0; check_byte < sizeof(check_bfr); check_byte++) {
+				if (check_bfr[check_byte] != 0xff) {
+					fprintf(stderr, "flash didn't erase @ 0x%08x\n", check_addr);
+					return 1;
+				}
+			}
+		}
 	}
 	printf("  Done\n");
 
