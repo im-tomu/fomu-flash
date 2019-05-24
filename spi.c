@@ -160,10 +160,13 @@ static uint8_t spiXfer(struct ff_spi *spi, uint8_t out) {
 		else {
 			gpioWrite(spi->pins.mosi, 0);
 		}
+		gpioRead(spi->pins.mosi);
 		gpioWrite(spi->pins.clk, 1);
+		gpioRead(spi->pins.clk);
 		spiPause(spi);
 		in |= ((!!gpioRead(spi->pins.miso)) << bit);
 		gpioWrite(spi->pins.clk, 0);
+		gpioRead(spi->pins.clk);
 		spiPause(spi);
 	}
 	return in;
@@ -685,13 +688,12 @@ static int spi_wait_for_not_busy(struct ff_spi *spi) {
 
 	do {
 		sr1 = spiReadStatus(spi, 1);
-		usleep(50);
 	} while (sr1 & (1 << 0));
 	return 0;
 }
 
 int spiIsBusy(struct ff_spi *spi) {
-  return spiReadStatus(spi, 1) & (1 << 0);
+	return spiReadStatus(spi, 1) & (1 << 0);
 }
 
 int spiBeginErase(struct ff_spi *spi, uint32_t erase_addr) {
@@ -828,8 +830,8 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 uint8_t spiReset(struct ff_spi *spi) {
 	// Shift to QPI mode, then back to Single mode, to ensure
 	// we're actually in Single mode.
-	spiSetType(spi, ST_QPI);
-	spiSetType(spi, ST_SINGLE);
+	//spiSetType(spi, ST_QPI);
+	//spiSetType(spi, ST_SINGLE);
 
 	spiBegin(spi);
 	spiCommand(spi, 0x66); // "Enable Reset" command
@@ -841,11 +843,9 @@ uint8_t spiReset(struct ff_spi *spi) {
 
 	usleep(30);
 
-	/*
 	spiBegin(spi);
 	spiCommand(spi, 0xab); // "Resume from Deep Power-Down" command
 	spiEnd(spi);
-	*/
 
 	// XXX You should check the "Ready" bit before doing this!
 	spi_wait_for_not_busy(spi);
@@ -878,6 +878,7 @@ int spiInit(struct ff_spi *spi) {
 
 	// Disable WP
 	gpioWrite(spi->pins.wp, 1);
+
 	spiReset(spi);
 
 	spi_get_id(spi);
@@ -929,7 +930,8 @@ void spiFree(struct ff_spi **spi) {
 	if (!*spi)
 		return;
 
-        spi_set_state(*spi, SS_HARDWARE);
+	spiSetType(*spi, ST_SINGLE);
+	spi_set_state(*spi, SS_HARDWARE);
 	free(*spi);
 	*spi = NULL;
 }

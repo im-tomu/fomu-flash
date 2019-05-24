@@ -589,8 +589,8 @@ int main(int argc, char **argv) {
         break;
     }
 
-    fpgaFree(&fpga);
     spiFree(&spi);
+    fpgaFree(&fpga);
 
     return 0;
 }
