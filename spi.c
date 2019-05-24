@@ -327,12 +327,20 @@ uint8_t spiReadStatus(struct ff_spi *spi, uint8_t sr) {
 	spiBegin(spi);
 	switch (sr) {
 	case 1:
-	case 2:
 		spiCommand(spi, 0x05);
 		val = spiCommandRx(spi);
-		if (sr == 2)
-			val = spiCommandRx(spi);
 		break;
+
+	case 2: {
+		if (spi->quirks & SQ_SR2_FROM_SR1) {
+			spiCommand(spi, 0x05);
+			(void) spiCommandRx(spi);
+		}
+		else
+			spiCommand(spi, 0x35);
+		val = spiCommandRx(spi);
+		break;
+	}
 
 	case 3:
 		spiCommand(spi, 0x15);
@@ -437,8 +445,12 @@ void spiWriteStatus(struct ff_spi *spi, uint8_t sr, uint8_t val) {
 		spiEnd(spi);
 
 		spiBegin(spi);
-		spiCommand(spi, 0x01);
-		spiCommand(spi, sr1);
+		if (spi->quirks & SQ_SR2_FROM_SR1) {
+			spiCommand(spi, 0x01);
+			spiCommand(spi, sr1);
+		}
+		else
+			spiCommand(spi, 0x31);
 		spiCommand(spi, val);
 
 		spiEnd(spi);
@@ -870,7 +882,6 @@ int spiInit(struct ff_spi *spi) {
 
 	spi_get_id(spi);
 
-	spi->quirks |= SQ_SR2_FROM_SR1;
 	if (spi->id.manufacturer_id == 0xef)
 		spi->quirks |= SQ_SKIP_SR_WEL | SQ_SECURITY_NYBBLE_SHIFT;
 	else if (spi->id.manufacturer_id == 0xc2)
