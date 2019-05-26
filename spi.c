@@ -760,7 +760,7 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 	uint8_t check_bfr[256];
 	uint32_t check_byte;
 	for (erase_addr = addr; erase_addr < (addr + count); erase_addr += ERASE_BLOCK_SIZE) {
-		printf("\rErasing @ %06x / %06x", addr, erase_addr + count);
+		printf("\rErasing @ %06x / %06x", erase_addr, addr + count);
 		fflush(stdout);
 
 		spiBeginErase(spi, erase_addr);
