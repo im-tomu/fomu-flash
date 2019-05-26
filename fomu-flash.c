@@ -489,7 +489,7 @@ int main(int argc, char **argv) {
             break;
         }
         close(fd);
-        spiWrite(spi, addr, bfr, stat.st_size);
+        spiWrite(spi, addr, bfr, stat.st_size, quiet);
         break;
     }
 

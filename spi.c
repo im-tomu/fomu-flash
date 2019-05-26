@@ -746,7 +746,7 @@ void spiSwapTxRx(struct ff_spi *spi) {
 	spi_set_state(spi, SS_SINGLE);
 }
 
-int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned int count) {
+int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned int count, int quiet) {
 
 	unsigned int i;
 
@@ -760,8 +760,10 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 	uint8_t check_bfr[256];
 	uint32_t check_byte;
 	for (erase_addr = addr; erase_addr < (addr + count); erase_addr += ERASE_BLOCK_SIZE) {
-		printf("\rErasing @ %06x / %06x", erase_addr, addr + count);
-		fflush(stdout);
+		if (!quiet) {
+			printf("\rErasing @ %06x / %06x", erase_addr, addr + count);
+			fflush(stdout);
+		}
 
 		spiBeginErase(spi, erase_addr);
 		spi_wait_for_not_busy(spi);
@@ -779,7 +781,8 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 			}
 		}
 	}
-	printf("  Done\n");
+	if (!quiet)
+		printf("  Done\n");
 
 	uint8_t write_cmd;
 	switch (spi->type) {
@@ -800,15 +803,19 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 
 	int total = count;
 	while (count) {
-		printf("\rProgramming @ %06x / %06x", addr, total);
-		fflush(stdout);
+		if (!quiet) {
+			printf("\rProgramming @ %06x / %06x", addr, total);
+			fflush(stdout);
+		}
 		spiBegin(spi);
 		spiCommand(spi, 0x06);
 		spiEnd(spi);
 
-		uint8_t sr1 = spiReadStatus(spi, 1);
-		if (!(sr1 & (1 << 1)))
-			fprintf(stderr, "error: write-enable latch (WEL) not set, write will probably fail\n");
+		if (!quiet) {
+			uint8_t sr1 = spiReadStatus(spi, 1);
+			if (!(sr1 & (1 << 1)))
+				fprintf(stderr, "error: write-enable latch (WEL) not set, write will probably fail\n");
+		}
 
 		spiBegin(spi);
 		spiCommand(spi, write_cmd);
@@ -822,8 +829,10 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 		addr += i;
 		spi_wait_for_not_busy(spi);
 	}
-	printf("\rProgramming @ %06x / %06x", addr, total);
-	printf("  Done\n");
+	if (!quiet) {
+		printf("\rProgramming @ %06x / %06x", addr, total);
+		printf("  Done\n");
+	}
 	return 0;
 }
 

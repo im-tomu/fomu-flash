@@ -74,7 +74,7 @@ struct spi_id spiId(struct ff_spi *spi);
 void spiOverrideSize(struct ff_spi *spi, uint32_t new_size);
 
 //int spi_wait_for_not_busy(struct ff_spi *spi);
-int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned int count);
+int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned int count, int quiet);
 uint8_t spiReset(struct ff_spi *spi);
 int spiInit(struct ff_spi *spi);
 
