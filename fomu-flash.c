@@ -133,6 +133,7 @@ static int print_program_modes(FILE *stream) {
     fprintf(stream, "    -h        This help page\n");
     fprintf(stream, "    -r        Reset the FPGA and have it boot from SPI\n");
     fprintf(stream, "    -i        Print out the SPI ID code\n");
+    fprintf(stream, "    -q        Quiet operation\n");
     fprintf(stream, "    -p offset Peek at 256 bytes of SPI flash at the specified offset\n");
     fprintf(stream, "    -f bin    Load this bitstream directly into the FPGA\n");
     fprintf(stream, "    -l rom    Replace the ROM in the bitstream with this file\n");
@@ -180,6 +181,7 @@ static int print_usage_error(FILE *stream) {
 
 int main(int argc, char **argv) {
     int opt;
+    int ret = 0;
     int fd;
     char *op_filename = NULL;
     struct ff_spi *spi;
@@ -194,6 +196,7 @@ int main(int argc, char **argv) {
     uint8_t security_val[256];
     enum op op = OP_UNKNOWN;
     struct irw_file *replacement_rom = NULL;
+    int quiet = 0;
 
 #ifndef DEBUG_ICE40_PATCH
     if (gpioInitialise() < 0) {
@@ -226,11 +229,15 @@ int main(int argc, char **argv) {
     fpgaSetPin(fpga, FP_DONE, F_DONE);
     fpgaSetPin(fpga, FP_CS, S_CE0);
 
-    while ((opt = getopt(argc, argv, "hip:rf:a:b:w:s:2:3:v:g:t:k:l:")) != -1) {
+    while ((opt = getopt(argc, argv, "hiqp:rf:a:b:w:s:2:3:v:g:t:k:l:")) != -1) {
         switch (opt) {
 
         case 'a':
             addr = strtoul(optarg, NULL, 0);
+            break;
+
+        case 'q':
+            quiet = 1;
             break;
 
         case 'r':
@@ -515,8 +522,11 @@ int main(int argc, char **argv) {
 
         unsigned int offset;
         for (offset = addr; offset < stat.st_size + addr; offset++) {
-            if (file_src[offset - addr] != spi_src[offset - addr])
-                printf("%9d: file: %02x   spi: %02x\n", offset, file_src[offset - addr], spi_src[offset - addr]);
+            if (file_src[offset - addr] != spi_src[offset - addr]) {
+                ret++;
+                if (!quiet)
+                    printf("%9d: file: %02x   spi: %02x\n", offset, file_src[offset - addr], spi_src[offset - addr]);
+            }
         }
         break;
     }
@@ -592,5 +602,5 @@ int main(int argc, char **argv) {
     spiFree(&spi);
     fpgaFree(&fpga);
 
-    return 0;
+    return ret;
 }
