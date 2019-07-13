@@ -41,7 +41,9 @@ int fpgaResetSlave(struct ff_fpga *fpga) {
     usleep(1200); // 13.2.SPI Slave Configuration Process
 
     // Release the CS pin
-    gpioWrite(fpga->pins.cs, 1);
+    // 2019/07/13: Don't release CS pin so as to prevent the SPI
+    // flash from waking up.
+    //gpioWrite(fpga->pins.cs, 1);
 
     return 0;
 }
