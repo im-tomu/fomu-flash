@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string.h>
@@ -62,6 +63,24 @@ struct ff_spi {
 };
 
 static void spi_get_id(struct ff_spi *spi);
+
+static struct timeval timer_start(void) {
+	struct timeval tv;
+	// start timer
+	gettimeofday(&tv, NULL);
+	return tv;
+}
+
+static uint32_t timer_ms_elapsed(struct timeval *t1) {
+	struct timeval t2;
+	uint32_t ms;
+        gettimeofday(&t2, NULL);
+
+	// Convert time to ms
+	ms  = (t2.tv_sec - t1->tv_sec) * 1000.0;      // sec to ms
+	ms += (t2.tv_usec - t1->tv_usec) / 1000.0;   // us to ms
+	return ms;
+}
 
 static void spi_set_state(struct ff_spi *spi, enum spi_state state) {
 	if (spi->state == state)
@@ -682,11 +701,18 @@ int spiRead(struct ff_spi *spi, uint32_t addr, uint8_t *data, unsigned int count
 	return 0;
 }
 
-static int spi_wait_for_not_busy(struct ff_spi *spi) {
+static int spi_wait_for_not_busy(struct ff_spi *spi, uint32_t timeout_ms) {
+	struct timeval tv;
 	uint8_t sr1;
+
+	tv = timer_start();
 	sr1 = spiReadStatus(spi, 1);
 
 	do {
+		if (timer_ms_elapsed(&tv) > timeout_ms) {
+			fprintf(stderr, "never went not busy (SR1: 0x%02x)\n", sr1);
+			return -1;
+		}
 		sr1 = spiReadStatus(spi, 1);
 	} while (sr1 & (1 << 0));
 	return 0;
@@ -766,7 +792,7 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 		}
 
 		spiBeginErase(spi, erase_addr);
-		spi_wait_for_not_busy(spi);
+		spi_wait_for_not_busy(spi, 1000);
 
 		uint32_t check_addr;
 		for (check_addr = erase_addr;
@@ -827,7 +853,7 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 		spiEnd(spi);
 		count -= i;
 		addr += i;
-		spi_wait_for_not_busy(spi);
+		spi_wait_for_not_busy(spi, 1000);
 	}
 	if (!quiet) {
 		printf("\rProgramming @ %06x / %06x", addr, total);
@@ -857,9 +883,7 @@ uint8_t spiReset(struct ff_spi *spi) {
 	spiEnd(spi);
 
 	// XXX You should check the "Ready" bit before doing this!
-	spi_wait_for_not_busy(spi);
-
-	return 0;
+	return spi_wait_for_not_busy(spi, 1000);
 }
 
 static void spi_wait_cs_idle(struct ff_spi *spi) {
@@ -888,14 +912,27 @@ int spiInit(struct ff_spi *spi) {
 	// Disable WP
 	gpioWrite(spi->pins.wp, 1);
 
-	spiReset(spi);
+	// Wait for CS to be 1, since the bus is shared and there's a pullup.
+	spi_wait_cs_idle(spi);
+
+	// Reset the SPI flash, which will return it to SPI mode even
+	// if it's in QPI mode.
+	//spiReset(spi);
+
+	if (spi_wait_for_not_busy(spi, 1000)) {
+		fprintf(stderr, "WARNING: SPI is still busy, communication may fail\n");;
+	}
+
+	spiSetType(spi, ST_SINGLE);
+
+	//spiReset(spi);
 
 	spi_get_id(spi);
 
 	if (spi->id.manufacturer_id == 0xef)
 		spi->quirks |= SQ_SKIP_SR_WEL | SQ_SECURITY_NYBBLE_SHIFT;
 	else if (spi->id.manufacturer_id == 0xc2)
-		spi->quirks |= SQ_SKIP_SR_WEL | SQ_QE_IN_SR1;
+		spi->quirks |= SQ_QE_IN_SR1 | SQ_SR2_FROM_SR3;
 
 	return 0;
 }
