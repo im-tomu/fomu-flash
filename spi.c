@@ -38,6 +38,10 @@ enum ff_spi_quirks {
 
 	// The "QE" bit is in SR1, not SR2
 	SQ_QE_IN_SR1 = (1 << 4),
+
+	// There is no separate "Write SR 2" command.  Instead,
+	// you must write SR2 after writing SR3
+	SQ_SR2_FROM_SR3    = (1 << 5),
 };
 
 struct ff_spi {
@@ -358,6 +362,10 @@ uint8_t spiReadStatus(struct ff_spi *spi, uint8_t sr) {
 			spiCommand(spi, 0x05);
 			(void) spiCommandRx(spi);
 		}
+		else if (spi->quirks & SQ_SR2_FROM_SR3) {
+			spiCommand(spi, 0x15);
+			(void) spiCommandRx(spi);
+		}
 		else
 			spiCommand(spi, 0x35);
 		val = spiCommandRx(spi);
@@ -433,6 +441,11 @@ void spiReadSecurity(struct ff_spi *spi, uint8_t sr, uint8_t security[256]) {
 
 void spiWriteStatus(struct ff_spi *spi, uint8_t sr, uint8_t val) {
 
+//	if (spi->quirks & SQ_SR2_FROM_SR3) {
+//		fprintf(stderr, "Can't write status for this chip\n");
+//		return;
+//	}
+
 	switch (sr) {
 	case 1:
 		if (!(spi->quirks & SQ_SKIP_SR_WEL)) {
@@ -453,7 +466,9 @@ void spiWriteStatus(struct ff_spi *spi, uint8_t sr, uint8_t val) {
 
 	case 2: {
 		uint8_t sr1 = 0x00;
+		uint8_t sr3 = 0x00;
 		sr1 = spiReadStatus(spi, 1);
+		sr3 = spiReadStatus(spi, 3);
 
 		if (!(spi->quirks & SQ_SKIP_SR_WEL)) {
 			spiBegin(spi);
@@ -470,6 +485,11 @@ void spiWriteStatus(struct ff_spi *spi, uint8_t sr, uint8_t val) {
 		if (spi->quirks & SQ_SR2_FROM_SR1) {
 			spiCommand(spi, 0x01);
 			spiCommand(spi, sr1);
+		}
+		else if (spi->quirks & SQ_SR2_FROM_SR3) {
+			spiCommand(spi, 0x01);
+			spiCommand(spi, sr1);
+			spiCommand(spi, sr3);
 		}
 		else
 			spiCommand(spi, 0x31);
@@ -639,7 +659,20 @@ int spiSetType(struct ff_spi *spi, enum spi_type type) {
 		}
 
 		// Enable QE bit
-		spiWriteStatus(spi, sr_addr, spiReadStatus(spi, sr_addr) | (1 << 1));
+		else if (spi->id.manufacturer_id == 0xc2) {
+			uint8_t old_status = spiReadStatus(spi, 1);
+			if (old_status != 0xff) {
+				if (! (old_status & (1 << 6)))
+					spiWriteStatus(spi, 1, old_status | (1 << 6));
+			}
+		}
+		else {
+			uint8_t old_status = spiReadStatus(spi, sr_addr);
+			if (old_status != 0xff) {
+				if (! (old_status & (1 << 1)))
+					spiWriteStatus(spi, sr_addr, old_status | (1 << 1));
+			}
+		}
 
 		spi->type = type;
 		spi_set_state(spi, SS_QUAD_TX);
@@ -647,7 +680,22 @@ int spiSetType(struct ff_spi *spi, enum spi_type type) {
 
 	case ST_QPI:
 		// Enable QE bit
-		spiWriteStatus(spi, sr_addr, spiReadStatus(spi, sr_addr) | (1 << 1));
+		if (spi->type != ST_QUAD) {
+			if (spi->id.manufacturer_id == 0xc2) {
+				uint8_t old_status = spiReadStatus(spi, 1);
+				if (old_status != 0xff) {
+					if (! (old_status & (1 << 6)))
+						spiWriteStatus(spi, 1, old_status | (1 << 6));
+				}
+			}
+			else {
+				uint8_t old_status = spiReadStatus(spi, sr_addr);
+				if (old_status != 0xff) {
+					if (! (old_status & (1 << 1)))
+						spiWriteStatus(spi, sr_addr, old_status | (1 << 1));
+				}
+			}
+		}
 
 		spiBegin(spi);
 		spiCommand(spi, 0x38);		// Enter QPI Mode
@@ -863,10 +911,7 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 }
 
 uint8_t spiReset(struct ff_spi *spi) {
-	// Shift to QPI mode, then back to Single mode, to ensure
-	// we're actually in Single mode.
-	//spiSetType(spi, ST_QPI);
-	//spiSetType(spi, ST_SINGLE);
+	spiSetType(spi, ST_SINGLE);
 
 	spiBegin(spi);
 	spiCommand(spi, 0x66); // "Enable Reset" command
@@ -897,14 +942,7 @@ int spiInit(struct ff_spi *spi) {
 	spi->state = SS_UNCONFIGURED;
 	spi->type = ST_UNCONFIGURED;
 
-	// Wait for CS to be 1, since the bus is shared
-	spi_wait_cs_idle(spi);
-
-	// Reset the SPI flash, which will return it to SPI mode even
-	// if it's in QPI mode.
-	spiReset(spi);
-
-	spiSetType(spi, ST_SINGLE);
+	spi_set_state(spi, SS_SINGLE);
 
 	// Have the SPI flash pay attention to us
 	gpioWrite(spi->pins.hold, 1);
