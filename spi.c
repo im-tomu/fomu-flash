@@ -347,6 +347,36 @@ uint8_t spiCommandRx(struct ff_spi *spi) {
 		return spiSingleRx(spi);
 }
 
+void spiEnableQuad(struct ff_spi *spi) {
+	if (spi->id.manufacturer_id == 0xef) {
+		uint8_t val;
+		spiBegin(spi);
+		spiCommand(spi, 0x35); // Read status register 2
+		val = spiCommandRx(spi);
+		spiEnd(spi);
+
+		// These bits shouldn't be 1, so if they're 1 then
+		// something is broken.
+		if ((val & 0xf) == 0xf)
+			return;
+
+		// If this bit is set, we're already in QE mode.
+		if (val & (1 << 1))
+			return;
+
+		val |= (1 << 1);
+		spiBegin(spi);
+		spiCommand(spi, 0x06);
+		spiEnd(spi);
+
+		spiBegin(spi);
+		spiCommand(spi, 0x31);
+		spiCommand(spi, val);
+		spiEnd(spi);
+	}
+	return;
+}
+
 uint8_t spiReadStatus(struct ff_spi *spi, uint8_t sr) {
 	uint8_t val = 0xff;
 
@@ -967,6 +997,7 @@ int spiInit(struct ff_spi *spi) {
 
 	spi_get_id(spi);
 
+	spiEnableQuad(spi);
 	if (spi->id.manufacturer_id == 0xef)
 		spi->quirks |= SQ_SKIP_SR_WEL | SQ_SECURITY_NYBBLE_SHIFT;
 	else if (spi->id.manufacturer_id == 0xc2)
