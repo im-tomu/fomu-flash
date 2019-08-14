@@ -955,6 +955,10 @@ uint8_t spiReset(struct ff_spi *spi) {
 
 	spiBegin(spi);
 	spiCommand(spi, 0xab); // "Resume from Deep Power-Down" command
+	spiCommand(spi, 0x00);
+	spiCommand(spi, 0x00);
+	spiCommand(spi, 0x00);
+	spiCommandRx(spi); // dummy
 	spiEnd(spi);
 
 	// XXX You should check the "Ready" bit before doing this!
@@ -985,7 +989,7 @@ int spiInit(struct ff_spi *spi) {
 
 	// Reset the SPI flash, which will return it to SPI mode even
 	// if it's in QPI mode.
-	//spiReset(spi);
+	spiReset(spi);
 
 	if (spi_wait_for_not_busy(spi, 1000)) {
 		fprintf(stderr, "WARNING: SPI is still busy, communication may fail\n");;
