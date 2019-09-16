@@ -95,6 +95,12 @@ static volatile uint32_t  *clkReg  = MAP_FAILED;
 #define PI_BANK (gpio>>5)
 #define PI_BIT  (1<<(gpio&0x1F))
 
+/* BCM2711 (RPi 4) pullups are different. */
+#define GPPUPPDN0 57 /* pins 15:0  */
+#define GPPUPPDN1 58 /* pins 31:16 */
+#define GPPUPPDN2 59 /* pins 47:32 */
+#define GPPUPPDN3 60 /* pins 57:48 */
+
 /* gpio modes. */
 
 #define PI_INPUT  0
@@ -131,6 +137,7 @@ int gpioGetMode(unsigned gpio) {
 #define PI_PUD_UP   2
 
 void gpioSetPullUpDown(unsigned gpio, unsigned pud) {
+  if (piModel != 4) {
    *(gpioReg + GPPUD) = pud;
 
    usleep(20);
@@ -142,6 +149,28 @@ void gpioSetPullUpDown(unsigned gpio, unsigned pud) {
    *(gpioReg + GPPUD) = 0;
 
    *(gpioReg + GPPUDCLK0 + PI_BANK) = 0;
+  } else {
+
+    int pullreg = GPPUPPDN0 + (gpio>>4); /* Which pull-up control reg to use */
+    int pullshift = (gpio & 0xf) << 1;   /* Bit position within reg */
+    unsigned int pullbits;
+    unsigned int pull;
+
+    switch (pud)
+      {
+      case PI_PUD_OFF: pull = 0; break;
+      case PI_PUD_UP: pull = 1; break;
+      case PI_PUD_DOWN: pull = 2; break;
+      default:
+       return;
+      }
+
+    pullbits = *(gpioReg + pullreg);
+    pullbits &= ~(3 << pullshift);
+    pullbits |= (pull << pullshift);
+    *(gpioReg + pullreg) = pullbits;
+
+  }
 }
 
 int gpioRead(unsigned gpio) {
@@ -201,7 +230,13 @@ unsigned gpioHardwareRevision(void) {
          {
             if (!strncasecmp("model name", buf, 10))
             {
-               if (strstr (buf, "ARMv6") != NULL)
+             if (strstr (buf, "v7l") != NULL) {
+                  piModel = 4;
+                  chars = 4;
+                  piPeriphBase = 0xFE000000;
+                  piBusAddr = 0x40000000;
+               }
+               else if (strstr (buf, "ARMv6") != NULL)
                {
                   piModel = 1;
                   chars = 4;
