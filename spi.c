@@ -574,6 +574,16 @@ static void spi_decode_id(struct ff_spi *spi) {
 		}
 	}
 
+	if (spi->id.manufacturer_id == 0xc8) {
+		spi->id.manufacturer = "Giga Device";
+		if ((spi->id.memory_type == 0x40)
+		 && (spi->id.memory_size == 0x14)) {
+			spi->id.model = "GD25Q16C";
+			spi->id.capacity = "16 Mbit";
+			spi->id.bytes = 2 * 1024 * 1024;
+		}
+	}
+
 	if (spi->id.manufacturer_id == 0xef) {
 		spi->id.manufacturer = "Winbond";
 		if ((spi->id.memory_type == 0x70)
