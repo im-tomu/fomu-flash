@@ -628,7 +628,7 @@ static void spi_decode_id(struct ff_spi *spi) {
 	if (spi->id.manufacturer_id == 0xc8) {
 		spi->id.manufacturer = "Giga Device";
 		if ((spi->id.memory_type == 0x40)
-		 && (spi->id.memory_size == 0x14)) {
+		 && (spi->id.memory_size == 0x15)) {
 			spi->id.model = "GD25Q16C";
 			spi->id.capacity = "16 Mbit";
 			spi->id.bytes = 2 * 1024 * 1024;
@@ -1018,10 +1018,16 @@ uint8_t spiReset(struct ff_spi *spi) {
 	return spi_wait_for_not_busy(spi, 1000);
 }
 
-static void spi_wait_cs_idle(struct ff_spi *spi) {
+static void spi_wait_cs_idle(struct ff_spi *spi, uint32_t max_ticks) {
+	uint32_t ticks = 0;
 	gpioSetMode(spi->pins.cs, PI_INPUT); // CE0#
-	while (!gpioRead(spi->pins.cs))
-		;
+	while (!gpioRead(spi->pins.cs)) {
+		if (ticks++ > max_ticks) {
+			fprintf(stderr, "timed out while waiting for cs to go high!\n");
+			fprintf(stderr, "either the device is defective, or it's not\n");
+			fprintf(stderr, "connected properly.\n");
+		}
+	}
 	gpioSetMode(spi->pins.cs, PI_OUTPUT); // CE0#
 }
 
@@ -1038,7 +1044,7 @@ int spiInit(struct ff_spi *spi) {
 	gpioWrite(spi->pins.wp, 1);
 
 	// Wait for CS to be 1, since the bus is shared and there's a pullup.
-	spi_wait_cs_idle(spi);
+	spi_wait_cs_idle(spi, 100000);
 
 	// Reset the SPI flash, which will return it to SPI mode even
 	// if it's in QPI mode.
