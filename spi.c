@@ -98,6 +98,11 @@ static void spi_set_state(struct ff_spi *spi, enum spi_state state) {
 		gpioSetMode(spi->pins.miso, PI_INPUT); // MISO
 		gpioSetMode(spi->pins.hold, PI_OUTPUT);
 		gpioSetMode(spi->pins.wp, PI_OUTPUT);
+		gpioWrite(spi->pins.clk, 0);
+		gpioWrite(spi->pins.cs, 1);
+		gpioWrite(spi->pins.mosi, 1);
+		gpioWrite(spi->pins.hold, 1);
+		gpioWrite(spi->pins.wp, 1);
 		break;
 
 	case SS_DUAL_RX:
