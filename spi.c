@@ -374,6 +374,52 @@ void spiEnableQuad(struct ff_spi *spi) {
 		spiCommand(spi, val);
 		spiEnd(spi);
 	}
+
+	if (spi->id.manufacturer_id == 0xc8) {
+		uint8_t sr1, sr2;
+
+		// The Giga Devices parts don't have the ability to
+		// write SR2 directly -- we must also rewrite SR1.
+
+		spiBegin(spi);
+		spiCommand(spi, 0x35); // Read status register 2
+		sr2 = spiCommandRx(spi);
+		spiEnd(spi);
+
+		// If this bit is set, we're already in QE mode.
+		if (sr2 & (1 << 1)) {
+			return;
+		}
+
+		// Check for the "reserved" , "QE", or "LB" bits set,
+		// which can indicate something is wrong.
+		if (sr2 & 0x0f) {
+			fprintf(stderr, "enable quad: SR2 is 0x%02x, which looks suspicious\n", sr2);
+			return;
+		}
+
+		// Read SR1, which we'll need in order to write both SR2 and SR1
+		spiBegin(spi);
+		spiCommand(spi, 0x05); // Read status register 1
+		sr1 = spiCommandRx(spi);
+		spiEnd(spi);
+
+		// Set "QE" Bit
+		sr2 |= (1 << 1);
+
+		// Enable writing to the SPI flash (including to the status registers)
+		spiBegin(spi);
+		spiCommand(spi, 0x06);
+		spiEnd(spi);
+
+		// Perform the update
+		spiBegin(spi);
+		spiCommand(spi, 0x01); // Write status registers
+		spiCommand(spi, sr1);  // Write SR1
+		spiCommand(spi, sr2);  // Write SR2
+		spiEnd(spi);
+	}
+
 	return;
 }
 
