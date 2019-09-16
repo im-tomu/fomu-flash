@@ -208,17 +208,42 @@ void gpioClearBank2(uint32_t bits) { *(gpioReg + GPCLR1) = bits; }
 void gpioSetBank1(uint32_t bits) { *(gpioReg + GPSET0) = bits; }
 void gpioSetBank2(uint32_t bits) { *(gpioReg + GPSET1) = bits; }
 
-unsigned gpioHardwareRevision(void) {
-   static unsigned rev = 0;
+static void piAssignAddresses(uint32_t rev) {
+   // Note: early models were serialized, and have `rev` values
+   // ranging from 0 to 15.  Happily, these all will map to
+   // the BCM2835 processor.
+   switch ((rev >> 12) & 0xf) {
+   case 0: // BCM2835
+      piPeriphBase = 0x20000000;
+      piBusAddr = 0x40000000;
+   break;
 
+   case 1: // BCM2836
+   case 2: // BCM2837
+      piPeriphBase = 0x3F000000;
+      piBusAddr = 0xC0000000;
+   break;
+
+   case 3: // BCM2711 (Pi 4)
+      piPeriphBase = 0xFE000000;
+      piBusAddr = 0x40000000;
+   break;
+
+   default:
+      fprintf(stderr, "Unrecognized Raspberry Pi revision: 0x%08x (processor rev %d)\n",
+            rev, (rev >> 12) & 0xf);
+   }
+   return;
+}
+
+unsigned gpioHardwareRevision(void) {
+   static uint32_t rev = 0;
+
+   int found_rev = 0;
    FILE * filp;
    char buf[512];
-   char term;
-   int chars=4; /* number of chars in revision string */
 
    if (rev) return rev;
-
-   piModel = 0;
 
    filp = fopen ("/proc/cpuinfo", "r");
 
@@ -226,45 +251,28 @@ unsigned gpioHardwareRevision(void) {
    {
       while (fgets(buf, sizeof(buf), filp) != NULL)
       {
-         if (piModel == 0)
-         {
-            if (!strncasecmp("model name", buf, 10))
-            {
-             if (strstr (buf, "v7l") != NULL) {
-                  piModel = 4;
-                  chars = 4;
-                  piPeriphBase = 0xFE000000;
-                  piBusAddr = 0x40000000;
-               }
-               else if (strstr (buf, "ARMv6") != NULL)
-               {
-                  piModel = 1;
-                  chars = 4;
-                  piPeriphBase = 0x20000000;
-                  piBusAddr = 0x40000000;
-               }
-               else if (strstr (buf, "ARMv7") != NULL)
-               {
-                  piModel = 2;
-                  chars = 6;
-                  piPeriphBase = 0x3F000000;
-                  piBusAddr = 0xC0000000;
-               }
-            }
-         }
-
+         // Pull out the "revision" and "Model", from
+         // https://www.raspberrypi.org/documentation/hardware/raspberrypi/revision-codes/README.md
          if (!strncasecmp("revision", buf, 8))
          {
-            if (sscanf(buf+strlen(buf)-(chars+1),
-               "%x%c", &rev, &term) == 2)
-            {
-               if (term != '\n') rev = 0;
+            // Revision        : a22082
+            found_rev = 1;
+            char *separator = strchr(buf, ':');
+            if (separator && separator[0] && separator[1] && separator[2]) {
+               rev = strtol(&separator[2], NULL, 16);
             }
          }
       }
 
+      piAssignAddresses(rev);
+
       fclose(filp);
    }
+
+   if (!found_rev) {
+      fprintf(stderr, "Warning: couldn't find Raspberry Pi revision in /proc/cpuinfo\n");
+   }
+
    return rev;
 }
 
