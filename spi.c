@@ -941,24 +941,16 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 }
 
 uint8_t spiReset(struct ff_spi *spi) {
+	int i;
+
 	spiSetType(spi, ST_SINGLE);
 
+	// Writing 0xff eight times is equivalent to exiting QPI mode,
+	// or if CFM mode is enabled it will terminate CFM and return
+	// to idle.
 	spiBegin(spi);
-	spiCommand(spi, 0x66); // "Enable Reset" command
-	spiEnd(spi);
-
-	spiBegin(spi);
-	spiCommand(spi, 0x99); // "Reset Device" command
-	spiEnd(spi);
-
-	usleep(30);
-
-	spiBegin(spi);
-	spiCommand(spi, 0xab); // "Resume from Deep Power-Down" command
-	spiCommand(spi, 0x00);
-	spiCommand(spi, 0x00);
-	spiCommand(spi, 0x00);
-	spiCommandRx(spi); // dummy
+	for (i = 0; i < 8; i++)
+		spiCommand(spi, 0xff);
 	spiEnd(spi);
 
 	// XXX You should check the "Ready" bit before doing this!
