@@ -1014,6 +1014,10 @@ uint8_t spiReset(struct ff_spi *spi) {
 		spiCommand(spi, 0xff);
 	spiEnd(spi);
 
+	spiBegin(spi);
+	spiCommand(spi, 0xab);	// Read electronic signature
+	spiEnd(spi);
+
 	// XXX You should check the "Ready" bit before doing this!
 	return spi_wait_for_not_busy(spi, 1000);
 }
