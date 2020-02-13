@@ -741,6 +741,36 @@ int spiSetType(struct ff_spi *spi, enum spi_type type) {
 	return 0;
 }
 
+int spiSetQe(struct ff_spi *spi) {
+	uint8_t sr_addr = 2;
+	if (spi->quirks & SQ_QE_IN_SR1)
+		sr_addr = 1;
+
+        printf("Attempting to set the QE bit...\n");
+	if (spi->id.manufacturer_id == 0xc2) {
+	  uint8_t old_status = spiReadStatus(spi, 1);
+	  if (old_status != 0xff) {
+	    if (! (old_status & (1 << 6))) {
+	      spiWriteStatus(spi, 1, old_status | (1 << 6));
+	      printf("QE bit set\n");
+	    } else
+	      printf("QE bit already set, doing nothing\n");
+	  }
+	}
+	else {
+	  uint8_t old_status = spiReadStatus(spi, sr_addr);
+	  if (old_status != 0xff) {
+	    if (! (old_status & (1 << 1))) {
+	      spiWriteStatus(spi, sr_addr, old_status | (1 << 1));
+	      printf("QE bit set\n");
+	    } else
+	      printf("QE bit already set, doing nothing\n");
+	  }
+	}
+
+	return 0;
+}
+
 int spiRead(struct ff_spi *spi, uint32_t addr, uint8_t *data, unsigned int count) {
 
 	unsigned int i;
