@@ -89,6 +89,7 @@ enum op {
     OP_SPI_SECURITY_WRITE,
     OP_FPGA_BOOT,
     OP_FPGA_RESET,
+    OP_SET_QE,
     OP_UNKNOWN,
 };
 
@@ -142,6 +143,7 @@ static int print_program_modes(FILE *stream) {
     fprintf(stream, "    -v bin    Verify the SPI flash contains this data\n");
     fprintf(stream, "    -s out    Save the SPI flash contents to this file\n");
     fprintf(stream, "    -k n[:f]  Read security register [n], or update it with the contents of file [f]\n");
+    fprintf(stream, "    -4        Sets the QE enable bit\n");
     return 0;
 }
 
@@ -229,7 +231,7 @@ int main(int argc, char **argv) {
     fpgaSetPin(fpga, FP_DONE, F_DONE);
     fpgaSetPin(fpga, FP_CS, S_CE0);
 
-    while ((opt = getopt(argc, argv, "hiqp:rf:a:b:w:s:2:3:v:g:t:k:l:")) != -1) {
+    while ((opt = getopt(argc, argv, "hiqp:rf:a:b:w:s:2:3:v:g:t:k:l:4")) != -1) {
         switch (opt) {
 
         case 'a':
@@ -374,6 +376,12 @@ int main(int argc, char **argv) {
                 free(op_filename);
             op_filename = strdup(optarg);
             break;
+
+	case '4':
+            if (op != OP_UNKNOWN)
+                return print_usage_error(stdout);
+            op = OP_SET_QE;
+	    break;
 
         default:
             print_help(stdout, argv[0]);
@@ -593,6 +601,10 @@ int main(int argc, char **argv) {
         printf("resetting fpga\n");
         fpgaResetMaster(fpga);
         break;
+
+    case OP_SET_QE:
+        spiSetQe(spi);
+	break;
 
     default:
         fprintf(stderr, "error: unknown operation\n");
