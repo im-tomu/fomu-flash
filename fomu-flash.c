@@ -152,7 +152,7 @@ static int print_help(FILE *stream, const char *progname) {
     fprintf(stream, "Usage:\n");
     fprintf(stream, "%15s  (-[hri] | [-p offset] | [-f bitstream] | \n", progname);
     fprintf(stream, "%15s            [-w bin] | [-v bin] | [-s out] | [-k n[:f]])\n", "");
-    fprintf(stream, "                [-g pinspec] [-t spitype] [-b bytes] [-a addr]\n");
+    fprintf(stream, "                [-g pinspec] [-t spitype] [-b bytes] [-a addr] [-u]\n");
     fprintf(stream, "\n");
     fprintf(stream, "Program mode (pick one):\n");
     print_program_modes(stream);
@@ -161,6 +161,7 @@ static int print_help(FILE *stream, const char *progname) {
     fprintf(stream, "    -g ps     Set the pin assignment with the given pinspec\n");
 #ifndef DEBUG_ICE40_PATCH
     fprintf(stream, "    -t type   Set the number of bits to use for SPI (1, 2, 4, or Q)\n");
+    fprintf(stream, "    -u        Unlock the SPI Global Block Protect with a 0x98 command\n");
     fprintf(stream, "    -b bytes  Override the size of the SPI flash, in bytes\n");
 #endif
     fprintf(stream, "You can remap various pins with -g.  The format is [name]:[number].\n");
@@ -227,11 +228,14 @@ int main(int argc, char **argv) {
     spiSetPin(spi, SP_WP, S_WP);
     spiSetPin(spi, SP_CS, S_CE0);
 
+    // by default do not unlock the chip
+    spiSetUnlockCmd(spi, NO_UNLOCK_CMD);
+
     fpgaSetPin(fpga, FP_RESET, F_RESET);
     fpgaSetPin(fpga, FP_DONE, F_DONE);
     fpgaSetPin(fpga, FP_CS, S_CE0);
 
-    while ((opt = getopt(argc, argv, "hiqp:rf:a:b:w:s:2:3:v:g:t:k:l:4")) != -1) {
+    while ((opt = getopt(argc, argv, "hiqp:rf:a:b:w:s:2:3:v:g:t:k:l:4:u")) != -1) {
         switch (opt) {
 
         case 'a':
@@ -252,7 +256,10 @@ int main(int argc, char **argv) {
         case 'b':
             spi_flash_bytes = strtoul(optarg, NULL, 0);
             break;
-
+        
+        case 'u':
+            spiSetUnlockCmd(spi, UNLOCK_CMD);
+            break;
         case 't':
             switch (*optarg) {
             case '1':

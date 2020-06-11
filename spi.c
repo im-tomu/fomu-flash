@@ -51,6 +51,7 @@ struct ff_spi {
 	struct spi_id id;
 	enum ff_spi_quirks quirks;
 	int size_override;
+	uint8_t unlock_cmd;
 
 	struct {
 		int clk;
@@ -467,10 +468,23 @@ uint8_t spiReadStatus(struct ff_spi *spi, uint8_t sr) {
 	return val;
 }
 
+void spiUnlockProtection(struct ff_spi *spi)
+{
+	if (spi->unlock_cmd != NO_UNLOCK_CMD)
+	{
+		spiBegin(spi);
+		spiCommand(spi, spi->unlock_cmd);
+		spiCommandRx(spi);
+		spiEnd(spi);
+	}
+}
+
 void spiWriteSecurity(struct ff_spi *spi, uint8_t sr, uint8_t security[256]) {
 
 	if (spi->quirks & SQ_SECURITY_NYBBLE_SHIFT)
 		sr <<= 4;
+
+	spiUnlockProtection(spi);
 
 	spiBegin(spi);
 	spiCommand(spi, 0x06);
@@ -960,6 +974,8 @@ int spiWrite(struct ff_spi *spi, uint32_t addr, const uint8_t *data, unsigned in
 			fflush(stdout);
 		}
 
+		spiUnlockProtection(spi);
+
 		spiBeginErase(spi, erase_addr);
 		spi_wait_for_not_busy(spi, 1000);
 
@@ -1123,6 +1139,11 @@ void spiSetPin(struct ff_spi *spi, enum spi_pin pin, int val) {
         case SP_D3: spi->pins.d3 = val; break;
 	default: fprintf(stderr, "unrecognized pin: %d\n", pin); break;
 	}
+}
+
+void spiSetUnlockCmd(struct  ff_spi *spi, int cmd)
+{
+	spi->unlock_cmd = cmd;
 }
 
 void spiHold(struct ff_spi *spi) {

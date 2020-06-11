@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+#define NO_UNLOCK_CMD 0x00
+#define UNLOCK_CMD 0x98
+
 enum spi_state {
 	SS_UNCONFIGURED = 0,
 	SS_SINGLE,
@@ -84,6 +87,7 @@ void spiSwapTxRx(struct ff_spi *spi);
 
 struct ff_spi *spiAlloc(void);
 void spiSetPin(struct ff_spi *spi, enum spi_pin pin, int val);
+void spiSetUnlockCmd(struct  ff_spi *spi, int cmd);
 void spiFree(struct ff_spi **spi);
 
 int spiSetQe(struct ff_spi *spi);
