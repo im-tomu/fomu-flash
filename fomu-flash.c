@@ -152,7 +152,7 @@ static int print_help(FILE *stream, const char *progname) {
     fprintf(stream, "Usage:\n");
     fprintf(stream, "%15s  (-[hri] | [-p offset] | [-f bitstream] | \n", progname);
     fprintf(stream, "%15s            [-w bin] | [-v bin] | [-s out] | [-k n[:f]])\n", "");
-    fprintf(stream, "                [-g pinspec] [-t spitype] [-b bytes] [-a addr]\n");
+    fprintf(stream, "                [-g pinspec] [-t spitype] [-b bytes] [-a addr] [-u]\n");
     fprintf(stream, "\n");
     fprintf(stream, "Program mode (pick one):\n");
     print_program_modes(stream);
@@ -227,11 +227,14 @@ int main(int argc, char **argv) {
     spiSetPin(spi, SP_WP, S_WP);
     spiSetPin(spi, SP_CS, S_CE0);
 
+    // by default do not unlock the chip
+    spiSetUnlockCmd(spi, NO_UNLOCK_CMD);
+
     fpgaSetPin(fpga, FP_RESET, F_RESET);
     fpgaSetPin(fpga, FP_DONE, F_DONE);
     fpgaSetPin(fpga, FP_CS, S_CE0);
 
-    while ((opt = getopt(argc, argv, "hiqp:rf:a:b:w:s:2:3:v:g:t:k:l:4")) != -1) {
+    while ((opt = getopt(argc, argv, "hiqp:rf:a:b:w:s:2:3:v:g:t:k:l:4:u")) != -1) {
         switch (opt) {
 
         case 'a':
@@ -252,7 +255,10 @@ int main(int argc, char **argv) {
         case 'b':
             spi_flash_bytes = strtoul(optarg, NULL, 0);
             break;
-
+        
+        case 'u':
+            spiSetUnlockCmd(spi, UNLOCK_CMD);
+            break;
         case 't':
             switch (*optarg) {
             case '1':
