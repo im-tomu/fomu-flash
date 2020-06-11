@@ -161,6 +161,7 @@ static int print_help(FILE *stream, const char *progname) {
     fprintf(stream, "    -g ps     Set the pin assignment with the given pinspec\n");
 #ifndef DEBUG_ICE40_PATCH
     fprintf(stream, "    -t type   Set the number of bits to use for SPI (1, 2, 4, or Q)\n");
+    fprintf(stream, "    -u        Unlock the SPI Global Block Protect with a 0x98 command\n");
     fprintf(stream, "    -b bytes  Override the size of the SPI flash, in bytes\n");
 #endif
     fprintf(stream, "You can remap various pins with -g.  The format is [name]:[number].\n");
