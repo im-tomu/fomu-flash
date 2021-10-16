@@ -201,18 +201,21 @@ int main(int argc, char **argv) {
     struct irw_file *replacement_rom = NULL;
     int quiet = 0;
 
-#ifndef DEBUG_ICE40_PATCH
-    if (gpioInitialise() < 0) {
-        fprintf(stderr, "Unable to initialize GPIO\n");
-        return 1;
-    }
 
-    // The original Raspberry Pi boards had a different assignment
-    // of pin 13.  All other boards assign it to BCM 27, but the
-    // original had it as BCM 21.
-    if ((gpioHardwareRevision() == 2) || (gpioHardwareRevision() == 3))
-        F_RESET = 21;
-#endif
+// Remove initialize delegated to new library
+
+// #ifndef DEBUG_ICE40_PATCH
+//     if (gpioInitialise() < 0) {
+//         fprintf(stderr, "Unable to initialize GPIO\n");
+//         return 1;
+//     }
+
+//     // The original Raspberry Pi boards had a different assignment
+//     // of pin 13.  All other boards assign it to BCM 27, but the
+//     // original had it as BCM 21.
+//     if ((gpioHardwareRevision() == 2) || (gpioHardwareRevision() == 3))
+//         F_RESET = 21;
+// #endif
 
     spi = spiAlloc();
     fpga = fpgaAlloc();

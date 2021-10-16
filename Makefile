@@ -1,6 +1,6 @@
 PACKAGE    = fomu-flash
-ADD_CFLAGS = 
-ADD_LFLAGS = 
+ADD_CFLAGS = -Dbcm2835
+ADD_LFLAGS = -lbcm2835 
 
 GIT_VERSION= $(shell git describe --tags)
 #TRGT      ?= arm-none-eabi-
