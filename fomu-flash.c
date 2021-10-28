@@ -623,8 +623,16 @@ int main(int argc, char **argv) {
         break;
     }
 
+
+
+
+
     spiFree(&spi);
     fpgaFree(&fpga);
+
+    #ifndef DEBUG_ICE40_PATCH
+        bcm2835_close();
+    #endif
 
     return ret;
 }
