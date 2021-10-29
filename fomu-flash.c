@@ -6,24 +6,25 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdlib.h>
+#include <bcm2835.h>
 
 #include "rpi.h"
 #include "spi.h"
 #include "fpga.h"
 #include "ice40.h"
 
-#define S_MOSI 10
-#define S_MISO 9
-#define S_CLK 11
-#define S_CE0 8
-#define S_HOLD 25
-#define S_WP 24
+#define S_MOSI RPI_BPLUS_GPIO_J8_19 // GPIO 10
+#define S_MISO RPI_BPLUS_GPIO_J8_21 // GPIO 9
+#define S_CLK RPI_BPLUS_GPIO_J8_23  // GPIO 11
+#define S_CE0 RPI_BPLUS_GPIO_J8_24  // GPIO 8
+#define S_HOLD RPI_BPLUS_GPIO_J8_22 // GPIO 25
+#define S_WP RPI_BPLUS_GPIO_J8_18   // GPIO 24
 #define S_D0 S_MOSI
 #define S_D1 S_MISO
 #define S_D2 S_WP
 #define S_D3 S_HOLD
-static unsigned int F_RESET = 27;
-#define F_DONE 17
+static unsigned int F_RESET = RPI_BPLUS_GPIO_J8_13; // GPIO 27
+#define F_DONE RPI_BPLUS_GPIO_J8_11 // GPIO 17
 
 // #define DEBUG_ICE40_PATCH
 
@@ -210,8 +211,8 @@ int main(int argc, char **argv) {
     // The original Raspberry Pi boards had a different assignment
     // of pin 13.  All other boards assign it to BCM 27, but the
     // original had it as BCM 21.
-    if ((gpioHardwareRevision() == 2) || (gpioHardwareRevision() == 3))
-        F_RESET = 21;
+    // if ((gpioHardwareRevision() == 2) || (gpioHardwareRevision() == 3))
+    //     F_RESET = 21;
 #endif
 
     spi = spiAlloc();
@@ -620,6 +621,10 @@ int main(int argc, char **argv) {
 
     spiFree(&spi);
     fpgaFree(&fpga);
+
+    #ifndef DEBUG_ICE40_PATCH
+        bcm2835_close();
+    #endif
 
     return ret;
 }
