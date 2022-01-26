@@ -473,8 +473,11 @@ void spiUnlockProtection(struct ff_spi *spi)
 	if (spi->unlock_cmd != NO_UNLOCK_CMD)
 	{
 		spiBegin(spi);
+		spiCommand(spi, 0x06);
+		spiEnd(spi);
+
+		spiBegin(spi);
 		spiCommand(spi, spi->unlock_cmd);
-		spiCommandRx(spi);
 		spiEnd(spi);
 	}
 }

@@ -297,7 +297,7 @@ int gpioInitialise(void) {
 
    gpioHardwareRevision(); /* sets piModel, needed for peripherals address */
 
-   fd = open("/dev/mem", O_RDWR | O_SYNC) ;
+   fd = open("/dev/gpiomem", O_RDWR | O_SYNC) ;
 
    if (fd < 0)
    {
